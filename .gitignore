@@ -1,0 +1,78 @@
+# General
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Backend (Node / Express)
+backend/**/node_modules/
+backend/**/dist/
+backend/**/build/
+
+# Frontend (Expo / React Native)
+frontend/**/node_modules/
+frontend/**/.expo/
+frontend/**/.expo-shared/
+frontend/**/web-build/
+frontend/**/dist/
+frontend/**/build/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+web-build/
+*.jks
+*.keystore
+
+# Docker
+**/docker-data/
+**/pgdata/
+**/postgres-data/
+**/volumes/
+**/.docker/
+docker-compose.override.yml
+
+# Database (NO SQLite, NO dumps)
+*.db
+*.sqlite
+*.sqlite3
+*.sql.dump
+*.dump
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests / coverage
+coverage/
+
+# Build / temp
+.tmp/
+.cache/
+
+# Certificates / keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# AWS
+.aws/
