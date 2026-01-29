@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.json({ message: "API Tecarral funcionando correctamente" });
+  res.json({ message: "API Tecarra funcionando correctamente" });
 });
 
 app.use("/api/auth", authRoutes);

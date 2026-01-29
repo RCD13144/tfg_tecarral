@@ -5,13 +5,41 @@ services:
     image: postgres:16
     container_name: tecarral_postgres
     environment:
-      POSTGRES_DB: tecarral
-      POSTGRES_USER: tecarral_user
-      POSTGRES_PASSWORD: tecarral_pass
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - tecarral_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    image: node:20-alpine
+    container_name: tecarral_api
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    command: sh -c "npm install && npx nodemon --legacy-watch --watch src src/server.js"
+
 
 volumes:
   tecarral_pgdata:

@@ -1,4 +1,4 @@
-import { pool } from "../config/db.js";
+import pool from "../config/db.js";
 
 export async function findUserByEmail(email) {
   const result = await pool.query(
