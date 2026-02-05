@@ -1,4 +1,4 @@
-import { createUser, findUserByEmail } from "../repositories/users.repository.js";
+import { createUser, findUserByEmail } from "../repositories/auth.repository.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { signToken } from "../utils/jwt.js";
 
