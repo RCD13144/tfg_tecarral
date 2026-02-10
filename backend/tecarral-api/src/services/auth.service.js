@@ -42,10 +42,16 @@ export async function login(email, plainPassword) {
     throw error;
   }
 
-  const token = signToken({ id: user.id_user, role: user.role, email: user.email });
+  const token = signToken({
+    id_user: user.id_user,
+    role: user.role,
+    email: user.email,
+    nombre: user.nombre,
+  });
+
 
   return {
     token,
-    user: { id: user.id_user, email: user.email, role: user.role }
+    user: { id_user: user.id_user, email: user.email, role: user.role }
   };
 }

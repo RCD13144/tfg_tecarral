@@ -12,7 +12,6 @@ export async function register(req, res) {
     } else {
       const { email, password, role, nombre, telefono } = validation.value;
 
-      // Si quieres impedir crear admins desde fuera, fuerza TECNICO aquí:
       const safeRole = role ?? ROLES.TECNICO;
 
       const user = await authService.register(email, password, safeRole, nombre, telefono);
