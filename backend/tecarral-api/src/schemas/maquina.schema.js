@@ -56,3 +56,44 @@ export function validateAvailability(value) {
     const ok = AVAILABILITIES.has(v);
     return ok;
 }
+
+const ubicaciones = new Set(["taller", "almacen", "almacén", "cliente", "desconocida", "transito", "tránsito"]); 
+
+export function validateUbicacionType(ubicacion_type){
+    const u = normalize(ubicacion_type); 
+    const ok = u !== undefined && ubicaciones.has(u);
+    return ok;
+}
+
+const motores = new Set(["diesel", "electrica", "semi electrica", "manual"]);
+
+export function validateMotorType(motor){
+    const m = normalize(motor); 
+    const ok =  m !== undefined && motores.has(m);
+    return ok;
+}
+
+const UBICACION_TIPO_CANON = {
+    taller: "TALLER",
+    almacen: "ALMACEN",
+    cliente: "CLIENTE",
+    desconocida: "DESCONOCIDA",
+    transito: "TRANSITO",
+};
+
+export function canonicalUbicacionType(value) {
+    const key = normalize(value);
+    return key === undefined ? undefined : UBICACION_TIPO_CANON[key];
+}
+
+const MOTOR_CANON = {
+    diesel: "Diésel",
+    electrica: "Eléctrica",
+    manual: "Manual",
+    "semi electrica": "Semi eléctrica",
+};
+
+export function canonicalMotor(value) {
+    const key = normalize(value);
+    return key === undefined ? undefined : MOTOR_CANON[key];
+}
