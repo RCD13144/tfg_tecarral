@@ -1,9 +1,8 @@
-import { getAllMaquinaria, getMaquinariaByIdFromDB, findMaquinaria, suggestModelo, suggestMarca, suggestSubtipo, suggestNS, suggestMotor, suggestTipo, crearMaquina, editarMaquina, deleteMaquina} from "../repositories/maquina.repository.js";
-
-export async function getMaquinaById(id) {
-    const maquina = await getMaquinariaByIdFromDB(id);
-    return maquina;
-}
+import { getAllMaquinaria, getMaquinariaByIdFromDB, findMaquinaria, suggestModelo, 
+    suggestMarca, suggestSubtipo, suggestNS, suggestMotor, suggestTipo, crearMaquina, 
+    editarMaquina, deleteMaquina, marcarEntregadaAtomic, marcarRecibidaEnBaseTx, marcarTransitoPorAlquilerTerminadoTx, 
+moverEntreBasesTx} from "../repositories/maquina.repository.js";
+import {validateUbicacionTipoDestino, validateDestinoBase,  isUbicacionTextUsable} from "../schemas/maquina.schema.js"
 
 export async function getMaquinaria(filters = {}) {
     const hasFilters = Object.values(filters).some(v => v !== undefined);
@@ -60,4 +59,69 @@ export async function editarMaquinariaByIdFromDB(id, patch) {
 export async function deleteMaquinariaByIdFromDB(id){
     const maquina = await deleteMaquina(id);
     return maquina;
+}
+
+export async function markDelivered(idMaquina) {
+  const result = await marcarEntregadaAtomic(idMaquina);
+  return result;
+}
+
+export async function marcarRecibidaEnBase(idMaquina, ubicacionTipo) {
+  const okUbicacion = validateUbicacionTipoDestino(ubicacionTipo);
+
+  if (!okUbicacion) {
+    const err = new Error("Ubicación destino inválida");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const result = await marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo);
+  return result;
+}
+
+export async function recomputeLogisticsByEndedRentals(options) {
+  const limit = options?.limit ?? 500;
+  return marcarTransitoPorAlquilerTerminadoTx({ limit });
+}
+
+export async function moverEntreBases(idMaquina, ubicacionTipo) {
+  const ok = validateDestinoBase(ubicacionTipo);
+
+  if (!ok) {
+    const err = new Error("Destino inválido");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const result = await moverEntreBasesTx(idMaquina, ubicacionTipo);
+  return result;
+}
+
+function buildMapsLinks(ubicacionText) {
+  const raw = String(ubicacionText ?? "").trim();
+  const q = encodeURIComponent(raw);
+
+  const geo = `geo:0,0?q=${q}`;
+
+  const google = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  const apple = `http://maps.apple.com/?q=${q}`;
+  const waze = `https://waze.com/ul?q=${q}&navigate=yes`;
+
+  return { query: raw, geo, google, apple, waze };
+}
+
+export async function getMaquinaById(idMaquina) {
+  const maquina = await getMaquinariaByIdFromDB(idMaquina);
+
+  if (maquina === null) {
+    return null;
+  }
+
+  const hasUbicacion = isUbicacionTextUsable(maquina.ubicacion);
+  const maps = hasUbicacion ? buildMapsLinks(maquina.ubicacion) : null;
+
+  return {
+    ...maquina,
+    maps,
+  };
 }

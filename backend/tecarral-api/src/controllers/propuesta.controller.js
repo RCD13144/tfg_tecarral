@@ -1,26 +1,40 @@
 import * as propuestaService from "../services/propuesta.service.js";
-import { validatePropuestaCreate, validatePropuestaUpdate } from "../schemas/propuesta.schema.js";
+import { validatePropuestaCreate, validatePropuestaUpdate, validateExpireQuery } from "../schemas/propuesta.schema.js";
 import { validateId, parseId } from "../schemas/common.schema.js";
 
 export async function crearPropuesta(req, res) {
   try {
-    const validation = validatePropuestaCreate(req.body);
+    const body = req.body;
 
-    if (!validation.ok) {
-      res.status(400).json({
-        error: "Datos inválidos",
-        details: validation.errors,
+    const validation = validatePropuestaCreate(body);
+
+    if (!validation) {
+      res.status(400).json({ error: "Máquina, email o telefono inválidos" });
+    } else {
+      const propuesta = await propuestaService.crearPropuestaIntoDB(body);
+      res.status(201).json(propuesta);
+    }
+  } catch (e) {
+    const status = e.statusCode ?? 500;
+
+    if (e.code === "MAQUINA_UNAVAILABLE") {
+      res.status(status).json({
+        error: e.message,
+        code: e.code,
+        maquina: e.details,
       });
       return;
     }
 
-    const propuesta = await propuestaService.crearPropuesta(validation.data);
+    if (e.code === "MAQUINA_NOT_FOUND") {
+      res.status(status).json({ error: e.message, code: e.code });
+      return;
+    }
 
-    res.status(201).json(propuesta);
-  } catch (e) {
-    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
+    res.status(status).json({ error: e.message ?? "Error" });
   }
 }
+
 
 export async function editarPropuesta(req, res) {
   try {
@@ -73,4 +87,22 @@ export async function deletePropuesta(req, res) {
     res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
   }
 }
+
+export async function expirePropuestas(req, res) {
+  try {
+    const validation = validateExpireQuery(req.query);
+
+    if (!validation.ok) {
+      res.status(400).json({ error: "Parámetros inválidos", details: validation.errors });
+      return;
+    }
+
+    const result = await propuestaService.expirePropuestasAndRecompute(validation.data);
+
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
+  }
+}
+
 

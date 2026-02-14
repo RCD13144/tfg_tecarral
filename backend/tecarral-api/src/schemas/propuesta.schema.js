@@ -1,3 +1,5 @@
+// schemas/propuesta.schema.js
+
 function toTrimmedText(v) {
   return String(v ?? "").trim();
 }
@@ -12,54 +14,71 @@ function isValidSpanishPhone(phone) {
   return patron.test(phone);
 }
 
-function isValidISODateOnly(value) {
+function isValidISODateTime(value) {
   const s = toTrimmedText(value);
-  const patron = /^\d{4}-\d{2}-\d{2}$/;
-  if (!patron.test(s)) return false;
 
-  const d = new Date(`${s}T00:00:00Z`);
+  // Acepta:
+  // 2026-02-14T09:30
+  // 2026-02-14T09:30:00
+  // 2026-02-14T09:30:00.123
+  // ... y opcionalmente con Z o +01:00
+  const patron =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:\d{2})?$/;
+
+  if (!patron.test(s)) {
+    return false;
+  }
+
+  const d = new Date(s);
   return !Number.isNaN(d.getTime());
+}
+
+function toEpochMs(iso) {
+  return new Date(toTrimmedText(iso)).getTime();
 }
 
 export function validatePropuestaCreate(body) {
   const errors = [];
 
-  const idMaquina = Number(toTrimmedText(body.id_maquina));
+  const idMaquina = Number(toTrimmedText(body?.id_maquina));
   if (!Number.isInteger(idMaquina) || idMaquina <= 0) errors.push("id_maquina inválido");
 
-  const cliente = toTrimmedText(body.cliente);
+  const cliente = toTrimmedText(body?.cliente);
   if (cliente.length === 0) errors.push("cliente requerido");
 
-  const emailCliente = toTrimmedText(body.email_cliente);
+  const emailCliente = toTrimmedText(body?.email_cliente);
   if (!isValidEmail(emailCliente)) errors.push("email_cliente inválido");
 
-  const telefono = toTrimmedText(body.telefono);
+  const telefono = toTrimmedText(body?.telefono);
   if (!isValidSpanishPhone(telefono)) errors.push("telefono inválido");
 
-  const direccion = toTrimmedText(body.direccion);
-  const cp = toTrimmedText(body.cp);
-  const poblacion = toTrimmedText(body.poblacion);
+  const direccion = toTrimmedText(body?.direccion);
+  const cp = toTrimmedText(body?.cp);
+  const poblacion = toTrimmedText(body?.poblacion);
 
   if (direccion.length === 0) errors.push("direccion requerida");
   if (cp.length === 0) errors.push("cp requerido");
   if (poblacion.length === 0) errors.push("poblacion requerida");
 
-  const precio = Number(toTrimmedText(body.precio));
+  const precio = Number(toTrimmedText(body?.precio));
   if (!Number.isFinite(precio) || precio <= 0) errors.push("precio inválido");
 
-  const fechaInicio = toTrimmedText(body.fecha_inicio);
-  const fechaFin = toTrimmedText(body.fecha_fin);
+  const fechaInicio = toTrimmedText(body?.fecha_inicio);
+  const fechaFin = toTrimmedText(body?.fecha_fin);
 
-  const fechaInicioOk = isValidISODateOnly(fechaInicio);
-  const fechaFinOk = isValidISODateOnly(fechaFin);
+  const fechaInicioOk = isValidISODateTime(fechaInicio);
+  const fechaFinOk = isValidISODateTime(fechaFin);
 
-  if (!fechaInicioOk) errors.push("fecha_inicio inválida (YYYY-MM-DD)");
-  if (!fechaFinOk) errors.push("fecha_fin inválida (YYYY-MM-DD)");
+  if (!fechaInicioOk) errors.push("fecha_inicio inválida (ISO: YYYY-MM-DDTHH:mm[:ss][Z|+hh:mm])");
+  if (!fechaFinOk) errors.push("fecha_fin inválida (ISO: YYYY-MM-DDTHH:mm[:ss][Z|+hh:mm])");
 
   if (fechaInicioOk && fechaFinOk) {
-    const ini = new Date(`${fechaInicio}T00:00:00Z`).getTime();
-    const fin = new Date(`${fechaFin}T00:00:00Z`).getTime();
-    if (fin <= ini) errors.push("fecha_fin debe ser mayor que fecha_inicio");
+    const ini = toEpochMs(fechaInicio);
+    const fin = toEpochMs(fechaFin);
+
+    if (fin <= ini) {
+      errors.push("fecha_fin debe ser mayor que fecha_inicio");
+    }
   }
 
   const ok = errors.length === 0;
@@ -110,44 +129,44 @@ export function validatePropuestaUpdate(body) {
     errors.push("Body vacío: no hay campos para editar");
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "cliente")) {
-    const cliente = toTrimmedText(body.cliente);
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "cliente")) {
+    const cliente = toTrimmedText(body?.cliente);
     if (cliente.length === 0) errors.push("cliente inválido");
     else data.cliente = cliente;
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "email_cliente")) {
-    const email = toTrimmedText(body.email_cliente);
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "email_cliente")) {
+    const email = toTrimmedText(body?.email_cliente);
     if (!isValidEmail(email)) errors.push("email_cliente inválido");
     else data.email_cliente = email;
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "telefono")) {
-    const tel = toTrimmedText(body.telefono);
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "telefono")) {
+    const tel = toTrimmedText(body?.telefono);
     if (!isValidSpanishPhone(tel)) errors.push("telefono inválido");
     else data.telefono = tel;
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "direccion")) {
-    const direccion = toTrimmedText(body.direccion);
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "direccion")) {
+    const direccion = toTrimmedText(body?.direccion);
     if (direccion.length === 0) errors.push("direccion inválida");
     else data.direccion = direccion;
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "cp")) {
-    const cp = toTrimmedText(body.cp);
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "cp")) {
+    const cp = toTrimmedText(body?.cp);
     if (cp.length === 0) errors.push("cp inválido");
     else data.cp = cp;
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "poblacion")) {
-    const poblacion = toTrimmedText(body.poblacion);
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "poblacion")) {
+    const poblacion = toTrimmedText(body?.poblacion);
     if (poblacion.length === 0) errors.push("poblacion inválida");
     else data.poblacion = poblacion;
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "precio")) {
-    const precio = Number(toTrimmedText(body.precio));
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "precio")) {
+    const precio = Number(toTrimmedText(body?.precio));
     if (!Number.isFinite(precio) || precio <= 0) errors.push("precio inválido");
     else data.precio = precio;
   }
@@ -155,18 +174,18 @@ export function validatePropuestaUpdate(body) {
   let fechaInicio = null;
   let fechaFin = null;
 
-  if (Object.prototype.hasOwnProperty.call(body, "fecha_inicio")) {
-    const fi = toTrimmedText(body.fecha_inicio);
-    if (!isValidISODateOnly(fi)) errors.push("fecha_inicio inválida (YYYY-MM-DD)");
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "fecha_inicio")) {
+    const fi = toTrimmedText(body?.fecha_inicio);
+    if (!isValidISODateTime(fi)) errors.push("fecha_inicio inválida (ISO datetime)");
     else {
       data.fecha_inicio = fi;
       fechaInicio = fi;
     }
   }
 
-  if (Object.prototype.hasOwnProperty.call(body, "fecha_fin")) {
-    const ff = toTrimmedText(body.fecha_fin);
-    if (!isValidISODateOnly(ff)) errors.push("fecha_fin inválida (YYYY-MM-DD)");
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "fecha_fin")) {
+    const ff = toTrimmedText(body?.fecha_fin);
+    if (!isValidISODateTime(ff)) errors.push("fecha_fin inválida (ISO datetime)");
     else {
       data.fecha_fin = ff;
       fechaFin = ff;
@@ -174,11 +193,34 @@ export function validatePropuestaUpdate(body) {
   }
 
   if (fechaInicio !== null && fechaFin !== null) {
-    const ini = new Date(`${fechaInicio}T00:00:00Z`).getTime();
-    const fin = new Date(`${fechaFin}T00:00:00Z`).getTime();
-    if (fin <= ini) errors.push("fecha_fin debe ser mayor que fecha_inicio");
+    const ini = toEpochMs(fechaInicio);
+    const fin = toEpochMs(fechaFin);
+
+    if (fin <= ini) {
+      errors.push("fecha_fin debe ser mayor que fecha_inicio");
+    }
   }
 
   const ok = errors.length === 0;
   return { ok, data: ok ? data : null, errors };
+}
+
+export function validateExpireQuery(query) {
+  const errors = [];
+
+  let limit = 500;
+
+  if (query?.limit !== undefined) {
+    const n = Number(String(query.limit).trim());
+    const ok = Number.isInteger(n) && n > 0 && n <= 5000;
+
+    if (!ok) {
+      errors.push("limit inválido (1..5000)");
+    } else {
+      limit = n;
+    }
+  }
+
+  const ok = errors.length === 0;
+  return { ok, data: ok ? { limit } : null, errors };
 }

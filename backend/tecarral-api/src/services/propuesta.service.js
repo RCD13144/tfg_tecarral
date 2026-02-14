@@ -1,5 +1,9 @@
 import { generatePublicToken } from "../utils/publicToken.js";
-import {crearPropuestaTx , findById, updatePropuestaPendingById, deletePropuestaById} from "../repositories/propuesta.repository.js";
+import { sendMail } from "../utils/mailer.js";
+import { buildPropuestaEmailHtml, buildPropuestaEmailText } from "../templates/propuestaEmail.template.js";
+import { crearPropuestaTx, findById, updatePropuestaPendingById, deletePropuestaById, expirePendingsAndRecomputeMachineStatesTx} from "../repositories/propuesta.repository.js";
+import { getMaquinaLabelById, marcarTransitoPorAlquilerTerminadoTx } from "../repositories/maquina.repository.js";
+
 
 const DEFAULT_EXPIRES_HOURS = 48;
 
@@ -55,8 +59,91 @@ export async function editarPropuesta(id, patch) {
   return updated;
 }
 
-export async function deletePropuestaFromDB(id){
+export async function deletePropuestaFromDB(id) {
   const propuesta = deletePropuestaById(id);
   return propuesta;
 }
 
+export async function expirePropuestasAndRecompute(options) {
+
+  const resultExpire =
+    await expirePendingsAndRecomputeMachineStatesTx(options);
+
+  const resultTransit =
+    await marcarTransitoPorAlquilerTerminadoTx(options);
+
+  return {
+    ...resultExpire,
+    transit_moved: resultTransit.moved_count,
+  };
+}
+
+
+function getPublicBaseUrl() {
+  const base = String(process.env.PUBLIC_BASE_URL ?? "").trim();
+  return base.length === 0 ? "http://localhost:3000" : base;
+}
+
+function addHours(date, hours) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+export async function crearPropuestaIntoDB(body) {
+  const { token, tokenHash } = generatePublicToken();
+  const expiresAt = addHours(new Date(), 48);
+
+  const propuesta = await crearPropuestaTx({
+    ...body,
+    token_hash: tokenHash,
+    expires_at: expiresAt,
+  });
+
+  const maquinaLabel = (await getMaquinaLabelById(propuesta.id_maquina)) ?? "Máquina";
+
+
+  const publicUrl = `${getPublicBaseUrl()}/public/propuestas/${token}`;
+
+  let emailSent = false;
+  let emailError = null;
+
+  try {
+    const subject = `Propuesta de alquiler - Máquina #${propuesta.id_maquina}`;
+
+    const html = buildPropuestaEmailHtml({
+      cliente: propuesta.cliente,
+      maquinaLabel,
+      fechaInicio: propuesta.fecha_inicio,
+      fechaFin: propuesta.fecha_fin,
+      precio: propuesta.precio,
+      url: publicUrl,
+    });
+
+    const text = buildPropuestaEmailText({
+      cliente: propuesta.cliente,
+      maquinaLabel,
+      fechaInicio: propuesta.fecha_inicio,
+      fechaFin: propuesta.fecha_fin,
+      precio: propuesta.precio,
+      url: publicUrl,
+    });
+
+    await sendMail({
+      to: propuesta.email_cliente,
+      subject,
+      html,
+      text,
+    });
+
+    emailSent = true;
+  } catch (e) {
+    emailSent = false;
+    emailError = e?.message ?? "Error enviando email";
+  }
+
+  return {
+    ...propuesta,
+    public_url: publicUrl,
+    email_sent: emailSent,
+    email_error: emailError,
+  };
+}

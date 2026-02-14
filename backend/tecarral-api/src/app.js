@@ -3,9 +3,10 @@ import cors from "cors";
 
 import authRoutes from "./routes/auth.routes.js";
 import usersRoutes from "./routes/users.routes.js";
-import maquinasRoutes from "./routes/maquinas.routes.js"
-import propuestaRoutes from "./routes/propuesta.routes.js"
-import publicPropuestaRoutes from "./routes/publicPropuesta.routes.js"
+import maquinasRoutes from "./routes/maquinas.routes.js";
+import propuestaRoutes from "./routes/propuesta.routes.js";
+import publicPropuestaRoutes from "./routes/publicPropuesta.routes.js";
+import { startExpirePropuestasJob } from "./jobs/expirePropuestas.job.js";
 
 const app = express();
 
@@ -20,6 +21,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api", usersRoutes);
 app.use("/api/maquinas", maquinasRoutes);
 app.use("/api/propuestas", propuestaRoutes);
-app.use("/public", publicPropuestaRoutes)
+app.use("/public", publicPropuestaRoutes);
+
+startExpirePropuestasJob();
 
 export default app;
