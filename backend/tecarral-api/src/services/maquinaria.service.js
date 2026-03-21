@@ -1,64 +1,138 @@
-import { getAllMaquinaria, getMaquinariaByIdFromDB, findMaquinaria, suggestModelo, 
-    suggestMarca, suggestSubtipo, suggestNS, suggestMotor, suggestTipo, crearMaquina, 
-    editarMaquina, deleteMaquina, marcarEntregadaAtomic, marcarRecibidaEnBaseTx, marcarTransitoPorAlquilerTerminadoTx, 
-moverEntreBasesTx} from "../repositories/maquina.repository.js";
-import {validateUbicacionTipoDestino, validateDestinoBase,  isUbicacionTextUsable} from "../schemas/maquina.schema.js"
+import {
+  getAllMaquinaria,
+  getMaquinariaByIdFromDB,
+  findMaquinaria,
+  suggestModelo,
+  suggestMarca,
+  suggestSubtipo,
+  suggestNS,
+  suggestMotor,
+  suggestTipo,
+  crearMaquina,
+  editarMaquina,
+  deleteMaquina,
+  marcarEntregadaAtomic,
+  marcarRecibidaEnBaseTx,
+  marcarTransitoPorAlquilerTerminadoTx,
+  moverEntreBasesTx,
+  getMaintenanceStatusById,
+  updateMaintenanceStatus,
+  abrirIncidenciaTx,
+  escalarAveriaGraveTx
+} from "../repositories/maquina.repository.js";
+
+import {
+  validateUbicacionTipoDestino,
+  validateDestinoBase,
+  isUbicacionTextUsable,
+} from "../schemas/maquina.schema.js";
+
+import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
+
+function buildMapsLinks(ubicacionText) {
+  const raw = String(ubicacionText ?? "").trim();
+  const q = encodeURIComponent(raw);
+
+  const geo = `geo:0,0?q=${q}`;
+
+  const google = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  const apple = `http://maps.apple.com/?q=${q}`;
+  const waze = `https://waze.com/ul?q=${q}&navigate=yes`;
+
+  return { query: raw, geo, google, apple, waze };
+}
+
+function isMaintenanceTransitionAllowed(current, next) {
+  const okToAveriada = current === MAINTENANCE_STATUS.OK && next === MAINTENANCE_STATUS.AVERIADA;
+  const okToGrave =
+    current === MAINTENANCE_STATUS.OK && next === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+  const averiadaToGrave =
+    current === MAINTENANCE_STATUS.AVERIADA && next === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+
+  return okToAveriada || okToGrave || averiadaToGrave;
+}
 
 export async function getMaquinaria(filters = {}) {
-    const hasFilters = Object.values(filters).some(v => v !== undefined);
+  const hasFilters = Object.values(filters).some((v) => v !== undefined);
 
-    if (hasFilters) {
-        const maquinas = await findMaquinaria(filters);
-        return maquinas;
-    }
-
-    const maquinas = await getAllMaquinaria();
+  if (hasFilters) {
+    const maquinas = await findMaquinaria(filters);
     return maquinas;
+  }
+
+  const maquinas = await getAllMaquinaria();
+  return maquinas;
 }
 
 export async function suggestModeloFromDB(text) {
-    const maquina = await suggestModelo(text);
-    return maquina;
+  const maquina = await suggestModelo(text);
+  return maquina;
 }
 
 export async function suggestMarcaFromDB(text) {
-    const maquina = await suggestMarca(text);
-    return maquina;
+  const maquina = await suggestMarca(text);
+  return maquina;
 }
 
 export async function suggestSubtipoFromDB(text) {
-    const maquina = await suggestSubtipo(text);
-    return maquina;
+  const maquina = await suggestSubtipo(text);
+  return maquina;
 }
 
 export async function suggestNSfromDB(text) {
-    const maquina = await suggestNS(text);
-    return maquina;
+  const maquina = await suggestNS(text);
+  return maquina;
 }
 
 export async function suggestMotorfromDB(text) {
-    const maquina = await suggestMotor(text);
-    return maquina;
+  const maquina = await suggestMotor(text);
+  return maquina;
 }
 
 export async function suggestTipofromDB(text) {
-    const maquina = await suggestTipo(text);
-    return maquina;
+  const maquina = await suggestTipo(text);
+  return maquina;
 }
 
-export async function crearMaquinaIntoDB(subtipo, marca, motor, modelo, ns, seguro, num_poliza, alquilada, ubicacion, observaciones, tipo, ubicacion_tipo){
-    const maquina = await crearMaquina(subtipo, marca, motor, modelo, ns, seguro, num_poliza, alquilada, ubicacion, observaciones, tipo, ubicacion_tipo);
-    return maquina;
+export async function crearMaquinaIntoDB(
+  subtipo,
+  marca,
+  motor,
+  modelo,
+  ns,
+  seguro,
+  num_poliza,
+  alquilada,
+  ubicacion,
+  observaciones,
+  tipo,
+  ubicacion_tipo
+) {
+  const maquina = await crearMaquina(
+    subtipo,
+    marca,
+    motor,
+    modelo,
+    ns,
+    seguro,
+    num_poliza,
+    alquilada,
+    ubicacion,
+    observaciones,
+    tipo,
+    ubicacion_tipo
+  );
+  return maquina;
 }
 
 export async function editarMaquinariaByIdFromDB(id, patch) {
-    const maquina = await editarMaquina(id, patch);
-    return maquina;
+  const maquina = await editarMaquina(id, patch);
+  return maquina;
 }
 
-export async function deleteMaquinariaByIdFromDB(id){
-    const maquina = await deleteMaquina(id);
-    return maquina;
+export async function deleteMaquinariaByIdFromDB(id) {
+  const maquina = await deleteMaquina(id);
+  return maquina;
 }
 
 export async function markDelivered(idMaquina) {
@@ -97,19 +171,6 @@ export async function moverEntreBases(idMaquina, ubicacionTipo) {
   return result;
 }
 
-function buildMapsLinks(ubicacionText) {
-  const raw = String(ubicacionText ?? "").trim();
-  const q = encodeURIComponent(raw);
-
-  const geo = `geo:0,0?q=${q}`;
-
-  const google = `https://www.google.com/maps/search/?api=1&query=${q}`;
-  const apple = `http://maps.apple.com/?q=${q}`;
-  const waze = `https://waze.com/ul?q=${q}&navigate=yes`;
-
-  return { query: raw, geo, google, apple, waze };
-}
-
 export async function getMaquinaById(idMaquina) {
   const maquina = await getMaquinariaByIdFromDB(idMaquina);
 
@@ -124,4 +185,74 @@ export async function getMaquinaById(idMaquina) {
     ...maquina,
     maps,
   };
+}
+
+export async function cambiarMaintenanceStatus(idMaquina, maintenanceStatus) {
+  const current = await getMaintenanceStatusById(idMaquina);
+
+  if (current === null) {
+    const err = new Error("Máquina no encontrada");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const allowed = isMaintenanceTransitionAllowed(current, maintenanceStatus);
+
+  if (!allowed) {
+    const err = new Error("Transición de maintenance_status no permitida");
+    err.statusCode = 409;
+    err.meta = { from: current, to: maintenanceStatus };
+    throw err;
+  }
+
+  await updateMaintenanceStatus(idMaquina, maintenanceStatus);
+
+  return {
+    id_maquina: idMaquina,
+    maintenance_status: maintenanceStatus,
+  };
+}
+
+export async function abrirIncidenciaIntoDB(
+  idMaquina,
+  maintenanceStatus,
+  propuestaAlquilerId,
+  comentario,
+  idUser
+) {
+  const okStatus =
+    maintenanceStatus === MAINTENANCE_STATUS.AVERIADA ||
+    maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+
+  if (!okStatus) {
+    const err = new Error("maintenance_status inválido");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!Number.isInteger(idUser) || idUser <= 0) {
+    const err = new Error("No autenticado");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  if (!Number.isInteger(propuestaAlquilerId) || propuestaAlquilerId <= 0) {
+    const err = new Error("propuesta_alquiler_id inválido");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const result = await abrirIncidenciaTx({
+    idMaquina,
+    maintenanceStatus,
+    propuestaAlquilerId,
+    comentario: comentario ?? null,
+    idUser, 
+  });
+
+  return result;
+}
+
+export async function escalarAveriaGraveIntoDB(idMaquina) {
+  return escalarAveriaGraveTx({ idMaquina });
 }

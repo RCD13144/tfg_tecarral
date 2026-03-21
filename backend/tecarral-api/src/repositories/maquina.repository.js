@@ -1,5 +1,7 @@
 import pool from "../config/db.js";
 import { UBICACION_TEXT } from "../constants/ubicaciones.js";
+import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
+import { REPARACION_ESTADOS } from "../constants/reparacionEstados.js";
 
 function addStringFilter(field, value, values, conditions, upper = false) {
     values.push(value);
@@ -485,7 +487,6 @@ function getUbicacionTextByTipo(ubicacionTipo) {
   return UBICACION_TEXT.DESCONOCIDA;
 }
 
-
 export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
   const client = await pool.connect();
   let result = { ok: false, reason: null, data: null };
@@ -495,7 +496,7 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
 
     const lockRes = await client.query(
       `
-      SELECT id_maquina, ubicacion_tipo
+      SELECT id_maquina, ubicacion_tipo, maintenance_status, availability_status
       FROM maquina
       WHERE id_maquina = $1
       FOR UPDATE;
@@ -507,38 +508,30 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
       await client.query("ROLLBACK");
       result = { ok: false, reason: "NOT_FOUND", data: null };
     } else {
-      const ubicacionActual = lockRes.rows[0].ubicacion_tipo;
+      const maquina = lockRes.rows[0];
+      const ubicacionActual = maquina.ubicacion_tipo;
 
       if (ubicacionActual !== "TRANSITO") {
         await client.query("ROLLBACK");
         result = { ok: false, reason: "NOT_IN_TRANSITO", data: null };
       } else {
-        const endedRes = await client.query(
+        const finalizadaRes = await client.query(
           `
           SELECT 1
           FROM propuesta_alquiler
           WHERE id_maquina = $1
-            AND estado = 'ACEPTADA'
-            AND fecha_fin < now()
+            AND estado = 'FINALIZADA'
           LIMIT 1;
           `,
           [idMaquina]
         );
 
-        const alquilerTerminado = endedRes.rowCount > 0;
+        const alquilerFinalizado = finalizadaRes.rowCount > 0;
+        const averiadaGrave =
+          maquina.maintenance_status === "AVERIADA_GRAVE";
 
-        if (alquilerTerminado) {
-          await client.query(
-            `
-            UPDATE propuesta_alquiler
-            SET estado = 'FINALIZADA'
-            WHERE id_maquina = $1
-              AND estado = 'ACEPTADA'
-              AND fecha_fin < now();
-            `,
-            [idMaquina]
-          );
-        }
+        const debeQuedarDisponible =
+          alquilerFinalizado && !averiadaGrave;
 
         const ubicacionText = getUbicacionTextByTipo(ubicacionTipo);
 
@@ -557,7 +550,7 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
           WHERE id_maquina = $1
           RETURNING *;
           `,
-          [idMaquina, ubicacionTipo, ubicacionText, alquilerTerminado]
+          [idMaquina, ubicacionTipo, ubicacionText, debeQuedarDisponible]
         );
 
         await client.query("COMMIT");
@@ -591,8 +584,7 @@ export async function marcarTransitoPorAlquilerTerminadoTx(options) {
         FROM maquina m
         JOIN propuesta_alquiler p
           ON p.id_maquina = m.id_maquina
-        WHERE p.estado = 'ACEPTADA'
-          AND p.fecha_fin < now()
+        WHERE p.estado = 'FINALIZADA'
           AND m.availability_status = 'ALQUILADA'
           AND m.ubicacion_tipo <> 'TRANSITO'
         ORDER BY m.id_maquina ASC
@@ -609,7 +601,7 @@ export async function marcarTransitoPorAlquilerTerminadoTx(options) {
       )
       SELECT
         COUNT(*)::int AS moved_count,
-        ARRAY_AGG(id_maquina)::bigint[] AS machines
+        COALESCE(ARRAY_AGG(id_maquina), ARRAY[]::bigint[]) AS machines
       FROM updated;
       `,
       [limit]
@@ -705,4 +697,328 @@ export async function moverEntreBasesTx(idMaquina, ubicacionTipo) {
   }
 
   return result;
+}
+
+export async function getMaintenanceStatusById(idMaquina) {
+  const { rows } = await pool.query(
+    `SELECT maintenance_status FROM public.maquina WHERE id_maquina = $1`,
+    [idMaquina]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return rows[0].maintenance_status ?? null;
+}
+
+export async function updateMaintenanceStatus(idMaquina, maintenanceStatus) {
+  await pool.query(
+    `UPDATE public.maquina SET maintenance_status = $2 WHERE id_maquina = $1`,
+    [idMaquina, maintenanceStatus]
+  );
+}
+
+export async function abrirIncidenciaTx({
+  idMaquina,
+  maintenanceStatus,
+  propuestaAlquilerId,
+  comentario,
+  idUser,
+}) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const maquinaRes = await client.query(
+      `
+      SELECT id_maquina, maintenance_status, marca, modelo, ns, ubicacion
+      FROM public.maquina
+      WHERE id_maquina = $1
+      FOR UPDATE
+      `,
+      [idMaquina]
+    );
+
+    if (maquinaRes.rows.length === 0) {
+      throw buildErr(404, "Máquina no encontrada", { idMaquina });
+    }
+
+    const maquina = maquinaRes.rows[0];
+
+    if (maquina.maintenance_status !== MAINTENANCE_STATUS.OK) {
+      throw buildErr(409, "No se puede abrir incidencia: la máquina no está en OK", {
+        from: maquina.maintenance_status,
+        to: maintenanceStatus,
+      });
+    }
+
+    const propRes = await client.query(
+      `
+      SELECT
+        id,
+        id_maquina,
+        cliente,
+        email_cliente,
+        telefono,
+        direccion,
+        cp,
+        poblacion,
+        estado,
+        fecha_inicio,
+        fecha_fin
+      FROM public.propuesta_alquiler
+      WHERE id = $1
+      `,
+      [propuestaAlquilerId]
+    );
+
+    if (propRes.rows.length === 0) {
+      throw buildErr(404, "propuesta_alquiler no encontrada", { propuestaAlquilerId });
+    }
+
+    const propuesta = propRes.rows[0];
+
+    if (Number(propuesta.id_maquina) !== Number(idMaquina)) {
+      throw buildErr(409, "La propuesta_alquiler no corresponde con la máquina", {
+        propuestaAlquilerId,
+        idMaquina,
+        propuestaIdMaquina: propuesta.id_maquina,
+      });
+    }
+
+    if (propuesta.estado !== "ACEPTADA") {
+      throw buildErr(409, "La propuesta_alquiler debe estar en estado ACEPTADA", {
+        propuestaAlquilerId,
+        estado: propuesta.estado,
+      });
+    }
+
+    const nowRes = await client.query(`SELECT NOW() as now`);
+    const now = nowRes.rows[0].now;
+
+    if (propuesta.fecha_fin && propuesta.fecha_fin <= now) {
+      throw buildErr(409, "La propuesta_alquiler ya ha finalizado por fecha", {
+        propuestaAlquilerId,
+        fecha_fin: propuesta.fecha_fin,
+      });
+    }
+
+    const logisticsStatus =
+      maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
+        ? "EN_CAMINO"
+        : null;
+
+    const ubicacionTipo =
+      maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
+        ? "TRANSITO"
+        : null;
+
+    const updateFields = ["maintenance_status = $2"];
+    const updateValues = [idMaquina, maintenanceStatus];
+    let paramIndex = 3;
+
+    if (logisticsStatus !== null) {
+      updateFields.push(`logistics_status = $${paramIndex}`);
+      updateValues.push(logisticsStatus);
+      paramIndex += 1;
+    }
+
+    if (ubicacionTipo !== null) {
+      updateFields.push(`ubicacion_tipo = $${paramIndex}`);
+      updateValues.push(ubicacionTipo);
+      paramIndex += 1;
+    }
+
+    await client.query(
+      `
+      UPDATE public.maquina
+      SET ${updateFields.join(", ")}
+      WHERE id_maquina = $1
+      `,
+      updateValues
+    );
+
+    const albaranRes = await client.query(
+      `
+      INSERT INTO public.albaran (
+        id_user,
+        id_maquina,
+        propuesta_alquiler_id,
+        cliente,
+        direccion,
+        telefono,
+        poblacion,
+        cp,
+        email_cliente,
+        marca,
+        modelo,
+        ns,
+        observaciones,
+        estado
+      )
+      VALUES (
+        $1, $2, $3,
+        $4, $5, $6, $7, $8, $9,
+        $10, $11, $12,
+        $13, 'BORRADOR'
+      )
+      RETURNING id_albaran
+      `,
+      [
+        idUser,
+        idMaquina,
+        propuestaAlquilerId,
+        propuesta.cliente,
+        propuesta.direccion,
+        propuesta.telefono,
+        propuesta.poblacion,
+        propuesta.cp,
+        propuesta.email_cliente,
+        maquina.marca,
+        maquina.modelo,
+        maquina.ns,
+        comentario ?? null,
+      ]
+    );
+
+    const idAlbaran = albaranRes.rows[0]?.id_albaran;
+
+    if (!idAlbaran) {
+      throw buildErr(500, "No se pudo crear el albarán", { idMaquina });
+    }
+
+    const idUserAsignado =
+      maintenanceStatus === MAINTENANCE_STATUS.AVERIADA ? idUser : null;
+
+    const reparacionEstado =
+      maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
+        ? "PENDIENTE_PRESUPUESTO"
+        : REPARACION_ESTADOS.CREADA;
+
+    const reparacionRes = await client.query(
+      `
+      INSERT INTO public.reparacion (
+        id_maquina,
+        id_albaran,
+        id_user_asignado,
+        comentario,
+        solucion_aplicada,
+        estado
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id_reparacion
+      `,
+      [
+        idMaquina,
+        idAlbaran,
+        idUserAsignado,
+        comentario ?? null,
+        null,
+        reparacionEstado,
+      ]
+    );
+
+    const idReparacion = reparacionRes.rows[0]?.id_reparacion;
+
+    if (!idReparacion) {
+      throw buildErr(500, "No se pudo crear la reparación", { idMaquina });
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      id_maquina: idMaquina,
+      maintenance_status: maintenanceStatus,
+      ubicacion_tipo: ubicacionTipo,
+      logistics_status: logisticsStatus,
+      id_albaran: idAlbaran,
+      id_reparacion: idReparacion,
+      reparacion_estado: reparacionEstado,
+    };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+function buildErr(statusCode, message, meta) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  err.meta = meta;
+  return err;
+}
+
+export async function escalarAveriaGraveTx({ idMaquina }) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const maquinaRes = await client.query(
+      `
+      SELECT id_maquina, maintenance_status
+      FROM public.maquina
+      WHERE id_maquina = $1
+      FOR UPDATE
+      `,
+      [idMaquina]
+    );
+
+    if (maquinaRes.rows.length === 0) {
+      throw buildErr(404, "Máquina no encontrada", { idMaquina });
+    }
+
+    const current = maquinaRes.rows[0].maintenance_status;
+
+    if (current === MAINTENANCE_STATUS.OK) {
+      throw buildErr(409, "No se puede escalar desde OK. Abre incidencia grave.", {
+        from: current,
+        to: MAINTENANCE_STATUS.AVERIADA_GRAVE,
+      });
+    }
+
+    if (current === MAINTENANCE_STATUS.AVERIADA_GRAVE) {
+      await client.query("COMMIT");
+      return { id_maquina: idMaquina, maintenance_status: MAINTENANCE_STATUS.AVERIADA_GRAVE };
+    }
+
+    if (current !== MAINTENANCE_STATUS.AVERIADA) {
+      throw buildErr(409, "Transición no permitida", {
+        from: current,
+        to: MAINTENANCE_STATUS.AVERIADA_GRAVE,
+      });
+    }
+
+    await client.query(
+      `
+      UPDATE public.maquina
+      SET maintenance_status = $2
+      WHERE id_maquina = $1
+      `,
+      [idMaquina, MAINTENANCE_STATUS.AVERIADA_GRAVE]
+    );
+
+    await client.query(
+      `
+      UPDATE public.reparacion
+      SET id_user_asignado = NULL, estado = 'PENDIENTE_PRESUPUESTO'
+      WHERE id_maquina = $1
+        AND estado NOT IN ('TERMINADA','CANCELADA')
+      `,
+      [idMaquina]
+    );
+
+    await client.query("COMMIT");
+
+    return { id_maquina: idMaquina, maintenance_status: MAINTENANCE_STATUS.AVERIADA_GRAVE };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

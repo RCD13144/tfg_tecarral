@@ -1,16 +1,30 @@
 import { generatePublicToken } from "../utils/publicToken.js";
 import { sendMail } from "../utils/mailer.js";
-import { buildPropuestaEmailHtml, buildPropuestaEmailText } from "../templates/propuestaEmail.template.js";
-import { crearPropuestaTx, findById, updatePropuestaPendingById, deletePropuestaById, expirePendingsAndRecomputeMachineStatesTx} from "../repositories/propuesta.repository.js";
-import { getMaquinaLabelById, marcarTransitoPorAlquilerTerminadoTx } from "../repositories/maquina.repository.js";
-
+import {
+  buildPropuestaEmailHtml,
+  buildPropuestaEmailText
+} from "../templates/propuestaEmail.template.js";
+import {
+  crearPropuestaTx,
+  findById,
+  updatePropuestaPendingById,
+  deletePropuestaById,
+  expirePendingPropuestasByEndDate,
+  finalizeNonPendingPropuestasByEndDate
+} from "../repositories/propuesta.repository.js";
+import {
+  getMaquinaLabelById,
+  marcarTransitoPorAlquilerTerminadoTx
+} from "../repositories/maquina.repository.js";
 
 const DEFAULT_EXPIRES_HOURS = 48;
 
 export async function crearPropuesta(data) {
   const { token, tokenHash } = generatePublicToken();
 
-  const expiresAt = new Date(Date.now() + DEFAULT_EXPIRES_HOURS * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + DEFAULT_EXPIRES_HOURS * 60 * 60 * 1000
+  );
 
   const propuesta = await crearPropuestaTx({
     ...data,
@@ -38,6 +52,7 @@ export async function editarPropuesta(id, patch) {
   }
 
   const expired = new Date(propuesta.expires_at).getTime() <= Date.now();
+
   if (expired) {
     throw createHttpError(409, "No se puede editar: propuesta expirada");
   }
@@ -51,6 +66,7 @@ export async function editarPropuesta(id, patch) {
 
   const ini = new Date(`${finalFechaInicio}T00:00:00Z`).getTime();
   const fin = new Date(`${finalFechaFin}T00:00:00Z`).getTime();
+
   if (fin <= ini) {
     throw createHttpError(400, "fecha_fin debe ser mayor que fecha_inicio");
   }
@@ -63,21 +79,6 @@ export async function deletePropuestaFromDB(id) {
   const propuesta = deletePropuestaById(id);
   return propuesta;
 }
-
-export async function expirePropuestasAndRecompute(options) {
-
-  const resultExpire =
-    await expirePendingsAndRecomputeMachineStatesTx(options);
-
-  const resultTransit =
-    await marcarTransitoPorAlquilerTerminadoTx(options);
-
-  return {
-    ...resultExpire,
-    transit_moved: resultTransit.moved_count,
-  };
-}
-
 
 function getPublicBaseUrl() {
   const base = String(process.env.PUBLIC_BASE_URL ?? "").trim();
@@ -98,8 +99,8 @@ export async function crearPropuestaIntoDB(body) {
     expires_at: expiresAt,
   });
 
-  const maquinaLabel = (await getMaquinaLabelById(propuesta.id_maquina)) ?? "Máquina";
-
+  const maquinaLabel =
+    (await getMaquinaLabelById(propuesta.id_maquina)) ?? "Máquina";
 
   const publicUrl = `${getPublicBaseUrl()}/public/propuestas/${token}`;
 
@@ -145,5 +146,19 @@ export async function crearPropuestaIntoDB(body) {
     public_url: publicUrl,
     email_sent: emailSent,
     email_error: emailError,
+  };
+}
+
+export async function finalizeOrExpirePropuestas() {
+  const expired = await expirePendingPropuestasByEndDate();
+  const finalized = await finalizeNonPendingPropuestasByEndDate();
+
+  const moved = await marcarTransitoPorAlquilerTerminadoTx({ limit: 500 });
+
+  return {
+    expired,
+    finalized,
+    moved_to_transit: moved.moved_count ?? 0,
+    moved_machine_ids: moved.machines ?? [],
   };
 }

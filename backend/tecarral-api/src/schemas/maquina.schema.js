@@ -1,5 +1,6 @@
 import { normalize } from "../utils/normalize.js";
 import { UBICACION_TIPO } from "../constants/ubicacionesTipo.js";
+import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
 
 export function validateId(idParam) {
     const id = Number(idParam);
@@ -115,13 +116,13 @@ export function canonicalLogisticsStatus(value) {
 const MAINTENANCE_KEYS = new Set([
     "ok",
     "averiada",
-    "en taller"
+    "averiada grave"
 ].map(normalize));
 
 const MAINTENANCE_CANON = {
     ok: "OK",
     averiada: "AVERIADA",
-    "en taller": "EN_TALLER"
+    "averiada grave": "AVERIADA_GRAVE"
 };
 
 export function validateMaintenanceStatus(value) {
@@ -212,3 +213,63 @@ export function isUbicacionTextUsable(value) {
   return t.length > 0 && t.toLowerCase() !== "desconocida";
 }
 
+function httpError(status, message, meta) {
+  const err = new Error(message);
+  err.status = status;
+  err.meta = meta;
+  return err;
+}
+
+function parsePositiveInt(value, fieldName) {
+  const num = Number(value);
+
+  if (!Number.isInteger(num) || num <= 0) {
+    throw httpError(400, `${fieldName} inválido`, { [fieldName]: value });
+  }
+
+  return num;
+}
+
+export function parseCambiarMaintenanceStatus(req) {
+  const id_maquina = parsePositiveInt(req.params.id, "id_maquina");
+  const maintenance_status = req.body?.maintenance_status;
+
+  const isAllowed =
+    maintenance_status === MAINTENANCE_STATUS.AVERIADA ||
+    maintenance_status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+
+  if (!isAllowed) {
+    throw httpError(400, "maintenance_status inválido", { maintenance_status });
+  }
+
+  return { id_maquina, maintenance_status };
+}
+
+export function validateMaintenanceStatusPatch(body) {
+  const status = body?.maintenance_status;
+
+  const ok =
+    status === MAINTENANCE_STATUS.AVERIADA ||
+    status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+
+  return ok;
+}
+
+export function validateAbrirIncidenciaBody(body) {
+  const status = body?.maintenance_status;
+  const propuestaId = Number(body?.propuesta_alquiler_id);
+
+  const okStatus =
+    status === MAINTENANCE_STATUS.AVERIADA ||
+    status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+
+  const okPropuesta = Number.isInteger(propuestaId) && propuestaId > 0;
+
+  const comentario = body?.comentario;
+  const okComentario =
+    comentario === undefined ||
+    comentario === null ||
+    (typeof comentario === "string" && comentario.length <= 2000);
+
+  return okStatus && okPropuesta && okComentario;
+}

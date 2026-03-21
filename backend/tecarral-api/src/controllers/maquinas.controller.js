@@ -14,6 +14,8 @@ import {
 import { normalize } from "../utils/normalize.js";
 import { validateId, parseId } from "../schemas/common.schema.js";
 import { UBICACION_TIPO } from "../constants/ubicacionesTipo.js";
+import { validateMaintenanceStatusPatch } from "../schemas/maquina.schema.js";
+import { validateAbrirIncidenciaBody } from "../schemas/maquina.schema.js";
 
 export async function getMaquinaria(req, res) {
     try {
@@ -498,5 +500,95 @@ export async function getMaquinaById(req, res) {
   }
 }
 
+export async function cambiarMaintenanceStatus(req, res, next) {
+  try {
+    const idMaquina = Number(req.params.id);
+
+    if (!Number.isInteger(idMaquina) || idMaquina <= 0) {
+      const err = new Error("ID de máquina inválido");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const ok = validateMaintenanceStatusPatch(req.body);
+
+    if (!ok) {
+      const err = new Error("maintenance_status inválido");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const maintenanceStatus = req.body.maintenance_status;
+
+    const result = await maquinaService.cambiarMaintenanceStatus(idMaquina, maintenanceStatus);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function abrirIncidencia(req, res) {
+  try {
+    const idMaquina = Number(req.params.id);
+
+    if (!Number.isInteger(idMaquina) || idMaquina <= 0) {
+      const err = new Error("ID de máquina inválido");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const ok = validateAbrirIncidenciaBody(req.body);
+
+    if (!ok) {
+      const err = new Error("Body inválido para abrir incidencia");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const idUser = Number(req.user?.id_user);
+
+    if (!Number.isInteger(idUser) || idUser <= 0) {
+      const err = new Error("No autenticado");
+      err.statusCode = 401;
+      throw err;
+    }
+
+    const { maintenance_status, propuesta_alquiler_id, comentario } = req.body;
+
+    const propuestaAlquilerId = Number(propuesta_alquiler_id);
+
+    const result = await maquinaService.abrirIncidenciaIntoDB(
+      idMaquina,
+      maintenance_status,
+      propuestaAlquilerId,
+      comentario ?? null,
+      idUser
+    );
+
+    res.status(201).json(result);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({
+      error: e.message ?? "Error",
+      meta: e.meta,
+    });
+  }
+}
+
+export async function escalarAveriaGrave(req, res) {
+  try {
+    const idMaquina = Number(req.params.id);
+
+    if (!Number.isInteger(idMaquina) || idMaquina <= 0) {
+      const err = new Error("ID de máquina inválido");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const result = await maquinaService.escalarAveriaGraveIntoDB(idMaquina);
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message, meta: e.meta });
+  }
+}
 
 

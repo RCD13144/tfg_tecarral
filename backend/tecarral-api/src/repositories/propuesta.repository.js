@@ -178,141 +178,30 @@ export async function deletePropuestaById(id){
     return true;
 }
 
-export async function expirePendingsAndRecomputeMachineStatesTx(options) {
-  const client = await pool.connect();
 
-  try {
-    await client.query("BEGIN");
+export async function expirePendingPropuestasByEndDate() {
+  const query = `
+    UPDATE propuesta_alquiler
+    SET estado = 'EXPIRADA'
+    WHERE fecha_fin < NOW()
+      AND estado = 'PENDING'
+  `;
 
-    const limit = options.limit;
+  const result = await pool.query(query);
 
-    const expireRes = await client.query(
-      `
-      WITH to_expire AS (
-        SELECT id, id_maquina
-        FROM propuesta_alquiler
-        WHERE estado = 'PENDING'
-          AND expires_at < now()
-        ORDER BY expires_at ASC
-        LIMIT $1
-      ),
-      updated AS (
-        UPDATE propuesta_alquiler p
-        SET estado = 'EXPIRADA'
-        FROM to_expire t
-        WHERE p.id = t.id
-        RETURNING t.id_maquina
-      )
-      SELECT
-        COUNT(*)::int AS expired_count,
-        ARRAY_AGG(DISTINCT id_maquina)::bigint[] AS machines
-      FROM updated;
-      `,
-      [limit]
-    );
+  return result.rowCount ?? 0;
+}
 
-    const expiredCount = expireRes.rows[0]?.expired_count ?? 0;
-    const expiredMachines = expireRes.rows[0]?.machines ?? [];
+export async function finalizeNonPendingPropuestasByEndDate() {
+  const query = `
+    UPDATE propuesta_alquiler
+    SET estado = 'FINALIZADA'
+    WHERE fecha_fin < NOW()
+      AND estado NOT IN ('PENDING', 'EXPIRADA', 'FINALIZADA')
+  `;
 
-    const transitRes = await client.query(
-      `
-      WITH ended AS (
-        SELECT DISTINCT m.id_maquina
-        FROM maquina m
-        JOIN propuesta_alquiler p
-          ON p.id_maquina = m.id_maquina
-        WHERE p.estado = 'ACEPTADA'
-          AND p.fecha_fin < now()
-          AND m.availability_status = 'ALQUILADA'
-          AND m.ubicacion_tipo <> 'TRANSITO'
-        ORDER BY m.id_maquina ASC
-        LIMIT $1
-      ),
-      updated AS (
-        UPDATE maquina m
-        SET
-          ubicacion_tipo = 'TRANSITO',
-          logistics_status = 'EN_CAMINO'
-        FROM ended e
-        WHERE m.id_maquina = e.id_maquina
-        RETURNING m.id_maquina
-      )
-      SELECT
-        COUNT(*)::int AS transit_count,
-        ARRAY_AGG(id_maquina)::bigint[] AS machines
-      FROM updated;
-      `,
-      [limit]
-    );
+  const result = await pool.query(query);
 
-    const transitCount = transitRes.rows[0]?.transit_count ?? 0;
-    const transitMachines = transitRes.rows[0]?.machines ?? [];
-
-    const machinesSet = new Set();
-    for (let i = 0; i < expiredMachines.length; i += 1) {
-      machinesSet.add(Number(expiredMachines[i]));
-    }
-    for (let i = 0; i < transitMachines.length; i += 1) {
-      machinesSet.add(Number(transitMachines[i]));
-    }
-
-    const machines = Array.from(machinesSet);
-
-    if (machines.length === 0) {
-      await client.query("COMMIT");
-      return {
-        expired_count: 0,
-        affected_machines_count: 0,
-        transit_count: 0,
-      };
-    }
-
-    await client.query(
-      `
-      UPDATE maquina m
-      SET
-        availability_status = CASE
-          WHEN EXISTS (
-            SELECT 1
-            FROM propuesta_alquiler p
-            WHERE p.id_maquina = m.id_maquina
-              AND p.estado = 'ACEPTADA'
-          ) THEN 'ALQUILADA'
-          WHEN EXISTS (
-            SELECT 1
-            FROM propuesta_alquiler p
-            WHERE p.id_maquina = m.id_maquina
-              AND p.estado = 'PENDING'
-              AND p.expires_at > now()
-          ) THEN 'SOLICITADA'
-          ELSE 'DISPONIBLE'
-        END,
-        logistics_status = CASE
-          WHEN EXISTS (
-            SELECT 1
-            FROM propuesta_alquiler p
-            WHERE p.id_maquina = m.id_maquina
-              AND p.estado = 'ACEPTADA'
-          ) THEN m.logistics_status
-          ELSE NULL
-        END
-      WHERE m.id_maquina = ANY($1::bigint[]);
-      `,
-      [machines]
-    );
-
-    await client.query("COMMIT");
-
-    return {
-      expired_count: expiredCount,
-      affected_machines_count: machines.length,
-      transit_count: transitCount,
-    };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
+  return result.rowCount ?? 0;
 }
 

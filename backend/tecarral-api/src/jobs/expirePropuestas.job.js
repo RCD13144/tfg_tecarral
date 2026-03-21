@@ -1,6 +1,14 @@
 import cron from "node-cron";
 import * as propuestaService from "../services/propuesta.service.js";
 
+function formatNowMadrid() {
+  return new Intl.DateTimeFormat("es-ES", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    timeZone: "Europe/Madrid",
+  }).format(new Date());
+}
+
 export function startExpirePropuestasJob() {
   const enabled =
     String(process.env.EXPIRE_JOB_ENABLED ?? "true").toLowerCase() === "true";
@@ -9,33 +17,31 @@ export function startExpirePropuestasJob() {
     return;
   }
 
-  const limit = Number(process.env.EXPIRE_JOB_LIMIT ?? "1000");
-  const safeLimit =
-    Number.isInteger(limit) && limit > 0 ? limit : 1000;
+  const cronExpression =
+    String(process.env.EXPIRE_JOB_CRON ?? "*/5 * * * *").trim();
 
-  cron.schedule("*/5 * * * *", async () => {
-    console.log("[expirePropuestasJob] tick", new Date().toISOString());
+  cron.schedule(cronExpression, async () => {
+    console.log("[expirePropuestasJob] tick", formatNowMadrid());
+
     try {
-      const result =
-        await propuestaService.expirePropuestasAndRecompute({
-          limit: safeLimit,
-        });
+      const result = await propuestaService.finalizeOrExpirePropuestas();
 
-      if (
-        result.expired_count > 0 ||
-        result.transit_moved > 0
-      ) {
-        console.log(
-          "[expirePropuestasJob] expired:",
-          result.expired_count,
-          "| moved to TRANSITO:",
-          result.transit_moved
-        );
-      }
+      console.log(
+        "[expirePropuestasJob] expiradas:",
+        result.expired,
+        "| finalizadas:",
+        result.finalized,
+        "| movidas a tránsito:",
+        result.moved_to_transit ?? 0,
+        "| hora:",
+        formatNowMadrid()
+      );
     } catch (e) {
       console.error(
         "[expirePropuestasJob] Error:",
-        e?.message ?? e
+        e?.message ?? e,
+        "| hora:",
+        formatNowMadrid()
       );
     }
   });

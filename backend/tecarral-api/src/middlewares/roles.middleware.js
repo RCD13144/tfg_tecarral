@@ -1,11 +1,18 @@
 export function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      res.status(401).json({ message: "Unauthorized" });
+      return;
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Forbidden" });
+    const userRole = String(req.user.role ?? "").trim().toLowerCase();
+    const normalizedAllowedRoles = allowedRoles.map((role) =>
+      String(role).trim().toLowerCase()
+    );
+
+    if (!normalizedAllowedRoles.includes(userRole)) {
+      res.status(403).json({ message: "Forbidden" });
+      return;
     }
 
     next();

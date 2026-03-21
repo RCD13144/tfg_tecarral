@@ -22,7 +22,7 @@ export function humanizeMaintenanceStatus(value) {
   const v = String(value ?? "").trim().toUpperCase();
   if (v === "OK") return "Correcta";
   if (v === "AVERIADA") return "Averiada";
-  if (v === "EN_TALLER") return "En taller";
+  if (v === "AVERIADA_GRAVE") return "Averiada grave";
   return "—";
 }
 

@@ -16,12 +16,7 @@ function isValidSpanishPhone(phone) {
 
 function isValidISODateTime(value) {
   const s = toTrimmedText(value);
-
-  // Acepta:
-  // 2026-02-14T09:30
-  // 2026-02-14T09:30:00
-  // 2026-02-14T09:30:00.123
-  // ... y opcionalmente con Z o +01:00
+  
   const patron =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:\d{2})?$/;
 
