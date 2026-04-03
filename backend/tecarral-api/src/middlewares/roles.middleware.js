@@ -1,11 +1,21 @@
 export function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      res.status(401).json({ error: "No autenticado" });
+      return;
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Forbidden" });
+    const userRole = String(req.user.role ?? "").trim().toLowerCase();
+
+    const normalizedAllowedRoles = allowedRoles.map((role) => {
+      return String(role).trim().toLowerCase();
+    });
+
+    const hasRequiredRole = normalizedAllowedRoles.includes(userRole);
+
+    if (!hasRequiredRole) {
+      res.status(403).json({ error: "No autorizado" });
+      return;
     }
 
     next();

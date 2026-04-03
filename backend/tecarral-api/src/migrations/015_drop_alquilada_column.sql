@@ -1,0 +1,2 @@
+ALTER TABLE maquina
+DROP COLUMN IF EXISTS alquilada;

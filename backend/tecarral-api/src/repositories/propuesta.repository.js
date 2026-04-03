@@ -19,11 +19,50 @@ async function marcarMaquinaSolicitadaSiProcede(client, idMaquina) {
   }
 }
 
+function buildMaquinaUnavailableError(maquina) {
+  const err = new Error("La máquina no está disponible para nuevas propuestas.");
+  err.code = "MAQUINA_UNAVAILABLE";
+  err.statusCode = 409;
+
+  err.details = {
+    id_maquina: maquina.id_maquina,
+    availability_status: maquina.availability_status,
+    tipo: maquina.tipo,
+    marca: maquina.marca,
+    modelo: maquina.modelo,
+  };
+
+  return err;
+}
+
 export async function crearPropuestaTx(body) {
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+
+    const mRes = await client.query(
+      `
+      SELECT id_maquina, availability_status, tipo, marca, modelo
+      FROM maquina
+      WHERE id_maquina = $1
+      FOR UPDATE;
+      `,
+      [body.id_maquina]
+    );
+
+    if (mRes.rowCount === 0) {
+      const err = new Error("Máquina no encontrada.");
+      err.code = "MAQUINA_NOT_FOUND";
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const maquina = mRes.rows[0];
+
+    if (maquina.availability_status === "ALQUILADA") {
+      throw buildMaquinaUnavailableError(maquina);
+    }
 
     const insertQuery = `
       INSERT INTO propuesta_alquiler(
@@ -58,7 +97,7 @@ export async function crearPropuestaTx(body) {
     const result = await client.query(insertQuery, values);
     const propuesta = result.rows[0];
 
-    await marcarMaquinaSolicitadaSiProcede(client, body.id_maquina);
+    await marcarMaquinaSolicitadaSiProcede(client, propuesta.id_maquina);
 
     await client.query("COMMIT");
     return propuesta;
@@ -69,6 +108,7 @@ export async function crearPropuestaTx(body) {
     client.release();
   }
 }
+
 
 export async function findById(id) {
   const q = `
@@ -137,3 +177,31 @@ export async function deletePropuestaById(id){
 
     return true;
 }
+
+
+export async function expirePendingPropuestasByEndDate() {
+  const query = `
+    UPDATE propuesta_alquiler
+    SET estado = 'EXPIRADA'
+    WHERE fecha_fin < NOW()
+      AND estado = 'PENDING'
+  `;
+
+  const result = await pool.query(query);
+
+  return result.rowCount ?? 0;
+}
+
+export async function finalizeNonPendingPropuestasByEndDate() {
+  const query = `
+    UPDATE propuesta_alquiler
+    SET estado = 'FINALIZADA'
+    WHERE fecha_fin < NOW()
+      AND estado NOT IN ('PENDING', 'EXPIRADA', 'FINALIZADA')
+  `;
+
+  const result = await pool.query(query);
+
+  return result.rowCount ?? 0;
+}
+

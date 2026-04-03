@@ -1,10 +1,11 @@
 import { verifyToken } from "../utils/jwt.js";
+import { findUserById } from "../repositories/users.repository.js";
 
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   const header = req.headers.authorization;
 
   if (!header) {
-    res.status(401).json({ error: "Falta Autorización" });
+    res.status(401).json({ error: "Falta autorización" });
     return;
   }
 
@@ -15,23 +16,44 @@ export function requireAuth(req, res, next) {
     return;
   }
 
-  const scheme = parts[0];
-  const token = parts[1];
+  const scheme = String(parts[0]).trim().toLowerCase();
+  const token = String(parts[1] ?? "").trim();
 
-  if (scheme !== "Bearer" || !token) {
+  if (scheme !== "bearer" || !token) {
     res.status(401).json({ error: "Autorización inválida" });
     return;
   }
 
   try {
     const payload = verifyToken(token);
-    
-    if (!payload || !payload.id_user || !payload.role) {
+
+    if (!payload || typeof payload !== "object") {
+      res.status(401).json({ error: "Token inválido" });
+      return;
+    }
+
+    const userId = payload.sub;
+
+    if (!userId) {
       res.status(401).json({ error: "Token inválido o incompleto" });
       return;
     }
 
-    req.user = payload;
+    const user = await findUserById(userId);
+
+    if (!user) {
+      res.status(401).json({ error: "Usuario no encontrado" });
+      return;
+    }
+
+    req.user = {
+      id_user: user.id_user,
+      email: user.email,
+      role: user.role,
+      nombre: user.nombre,
+      telefono: user.telefono,
+    };
+
     next();
   } catch {
     res.status(401).json({ error: "Token inválido o expirado" });

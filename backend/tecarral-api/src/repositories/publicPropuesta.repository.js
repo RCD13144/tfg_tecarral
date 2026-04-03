@@ -1,14 +1,24 @@
 import pool from "../config/db.js";
 
 export async function findByTokenHash(tokenHash) {
-  const q = `
-    SELECT *
-    FROM propuesta_alquiler
-    WHERE token_hash = $1
+  const query = `
+    SELECT
+      p.*,
+      m.tipo AS maquina_tipo,
+      m.marca AS maquina_marca,
+      m.modelo AS maquina_modelo,
+      m.motor AS maquina_motor,
+      m.tipo_maquina AS maquina_tipo_maquina,
+      m.logistics_status AS maquina_logistics_status,
+      m.maintenance_status AS maquina_maintenance_status
+    FROM propuesta_alquiler p
+    JOIN maquina m ON m.id_maquina = p.id_maquina
+    WHERE p.token_hash = $1
     LIMIT 1;
   `;
-  const r = await pool.query(q, [tokenHash]);
-  return r.rows[0] ?? null;
+
+  const result = await pool.query(query, [tokenHash]);
+  return result.rowCount === 0 ? null : result.rows[0];
 }
 
 export async function isUnavailableForThisProposal(propuesta) {
@@ -108,7 +118,10 @@ export async function acceptAtomic(tokenHash) {
     await client.query(
       `
       UPDATE maquina
-      SET availability_status = 'ALQUILADA'
+      SET
+        availability_status = 'ALQUILADA',
+        logistics_status = 'EN_CAMINO',
+        ubicacion_tipo = 'TRANSITO'
       WHERE id_maquina = $1;
       `,
       [propuesta.id_maquina]
@@ -123,6 +136,7 @@ export async function acceptAtomic(tokenHash) {
     client.release();
   }
 }
+
 
 export async function rejectAtomic(tokenHash) {
   const client = await pool.connect();
@@ -211,11 +225,15 @@ export async function rejectAtomic(tokenHash) {
     await client.query(
       `
       UPDATE maquina
-      SET availability_status = $2
+      SET
+      availability_status = $2,
+      logistics_status = NULL
       WHERE id_maquina = $1;
       `,
       [propuesta.id_maquina, nextStatus]
     );
+
+
 
     await client.query("COMMIT");
     return { type: "OK" };

@@ -9,6 +9,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # Backend (Node / Express)
 backend/**/node_modules/

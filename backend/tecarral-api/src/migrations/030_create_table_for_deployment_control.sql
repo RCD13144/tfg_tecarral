@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS public.data_migrations (
+  key TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
