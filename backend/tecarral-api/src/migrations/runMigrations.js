@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import pool from "../config/db.js";
+import pg from "pg";
 import { fileURLToPath } from "url";
 
 function listSqlMigrations(migrationsDir) {
@@ -8,6 +8,15 @@ function listSqlMigrations(migrationsDir) {
     .readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
+}
+
+async function ensureMigrationsTable(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      filename TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 }
 
 async function getAppliedMigrations(client) {
@@ -21,20 +30,32 @@ async function getAppliedMigrations(client) {
   return applied;
 }
 
+function buildMigrationClient() {
+  return new pg.Client({
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : undefined,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+  });
+}
+
 export async function runMigrations() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
   const migrationsDir = path.resolve(__dirname, "../migrations");
-
   const files = listSqlMigrations(migrationsDir);
 
-  const client = await pool.connect();
+  const client = buildMigrationClient();
+
+  await client.connect();
 
   try {
     await client.query("SELECT pg_advisory_lock(123456789)");
-
     await client.query("BEGIN");
+
+    await ensureMigrationsTable(client);
 
     const applied = await getAppliedMigrations(client);
 
@@ -53,14 +74,18 @@ export async function runMigrations() {
 
     await client.query("COMMIT");
   } catch (error) {
-    await client.query("ROLLBACK");
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+    }
+
     throw error;
   } finally {
     try {
       await client.query("SELECT pg_advisory_unlock(123456789)");
     } catch {
-      // no-op
     }
-    client.release();
+
+    await client.end();
   }
 }

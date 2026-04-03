@@ -20,9 +20,8 @@ export function validateMarcarReparacionTerminadaBody(body) {
   return {
     ok: errors.length === 0,
     errors,
-    value: {
-      solucion_aplicada:
-        solucion === undefined ? null : solucion,
-    },
+    value: errors.length === 0? {
+      solucion_aplicada: solucion
+    } : null
   };
 }

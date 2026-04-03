@@ -19,11 +19,11 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (req, res) => {
-  res.json({ message: "API Tecarra funcionando correctamente" });
+  res.json({ message: "API Tecarral funcionando correctamente" });
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api", usersRoutes);
+app.use("/api/users", usersRoutes);
 app.use("/api/maquinas", maquinasRoutes);
 app.use("/api/propuestas", propuestaRoutes);
 app.use("/api/presupuestos-reparacion", presupuestoReparacionRoutes);
@@ -32,7 +32,9 @@ app.use("/public", publicPresupuestoReparacionRoutes);
 app.use("/api/reparaciones", reparacionRoutes);
 app.use("/api/albaranes", albaranesRoutes);
 
-startExpirePropuestasJob();
-startExpirePresupuestosReparacionJob();
+if (process.env.NODE_ENV !== "test") {
+  startExpirePropuestasJob();
+  startExpirePresupuestosReparacionJob();
+}
 
 export default app;

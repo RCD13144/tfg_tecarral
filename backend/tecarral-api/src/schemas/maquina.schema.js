@@ -174,7 +174,7 @@ export function validateTallerLocationBody(body) {
 
 
 export function validateUbicacionTipoDestino(value) {
-  const v = String(value ?? "").trim().toUpperCase();
+  const v = String(value ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return v === UBICACION_TIPO.TALLER || v === UBICACION_TIPO.ALMACEN;
 }
 
@@ -200,12 +200,8 @@ export const UBICACION_TIPO_DESTINO = Object.freeze({
 });
 
 export function validateDestinoBase(value) {
-  const v = String(value ?? "").trim().toUpperCase();
+  const v = String(value ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return v === UBICACION_TIPO_DESTINO.TALLER || v === UBICACION_TIPO_DESTINO.ALMACEN;
-}
-
-export function normalizeDestinoBase(value) {
-  return String(value ?? "").trim().toUpperCase();
 }
 
 export function isUbicacionTextUsable(value) {

@@ -7,11 +7,9 @@ function isBase64Payload(v) {
 
   const raw = v.trim();
 
-  // Permite "data:image/png;base64,...."
   const parts = raw.split("base64,");
   const b64 = parts.length === 2 ? parts[1] : raw;
 
-  // Validación mínima (evitar cosas vacías)
   if (b64.length < 20) return false;
 
   return true;

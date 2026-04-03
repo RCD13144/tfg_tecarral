@@ -1,5 +1,3 @@
-// schemas/propuesta.schema.js
-
 function toTrimmedText(v) {
   return String(v ?? "").trim();
 }
@@ -16,7 +14,7 @@ function isValidSpanishPhone(phone) {
 
 function isValidISODateTime(value) {
   const s = toTrimmedText(value);
-  
+
   const patron =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:\d{2})?$/;
 
@@ -76,21 +74,30 @@ export function validatePropuestaCreate(body) {
     }
   }
 
+  if (fechaInicioOk) {
+    const actualDate = Date.now();
+    const fechaInicioMs = toEpochMs(fechaInicio);
+
+    if (fechaInicioMs < actualDate) {
+      errors.push("fecha_inicio debe ser mayor a la fecha actual");
+    }
+  }
+
   const ok = errors.length === 0;
 
   const data = ok
     ? {
-        id_maquina: idMaquina,
-        cliente,
-        email_cliente: emailCliente,
-        telefono,
-        direccion,
-        cp,
-        poblacion,
-        precio,
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-      }
+      id_maquina: idMaquina,
+      cliente,
+      email_cliente: emailCliente,
+      telefono,
+      direccion,
+      cp,
+      poblacion,
+      precio,
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
+    }
     : null;
 
   return { ok, data, errors };
@@ -193,6 +200,16 @@ export function validatePropuestaUpdate(body) {
 
     if (fin <= ini) {
       errors.push("fecha_fin debe ser mayor que fecha_inicio");
+    }
+  }
+
+  const actualDate = Date.now();
+
+  if (fechaInicio !== null) {
+    const fechaInicioMs = toEpochMs(fechaInicio);
+
+    if (fechaInicioMs < actualDate) {
+      errors.push("fecha_inicio debe ser mayor a la fecha actual");
     }
   }
 

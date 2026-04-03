@@ -30,7 +30,9 @@ export function validateCreatePresupuestoReparacionBody(body) {
     errors.push("propuesta_alquiler_id debe ser un entero positivo");
   }
 
-  if (importeTotal === null || importeTotal < 0) {
+  if (importeTotal === null){
+    errors.push("importe_total debe ser un número");
+  }else if (importeTotal < 0) {
     errors.push("importe_total debe ser un número mayor o igual que 0");
   }
 
@@ -43,6 +45,12 @@ export function validateCreatePresupuestoReparacionBody(body) {
 
   if (!isExpiraAtValid) {
     errors.push("expira_at debe ser una fecha válida");
+  }else {
+    const now = new Date();
+
+    if (expiraAtDate <= now) {
+      errors.push("expira_at debe ser una fecha futura");
+    }
   }
 
   const ok = errors.length === 0;
