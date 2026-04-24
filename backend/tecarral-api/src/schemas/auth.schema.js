@@ -26,23 +26,8 @@ export function validateLoginBody(body) {
 export function validateChangeTemporaryPasswordBody(body) {
   const errors = [];
 
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
-  const temporaryPassword =
-    typeof body?.temporaryPassword === "string" ? body.temporaryPassword : "";
   const newPassword =
     typeof body?.newPassword === "string" ? body.newPassword : "";
-
-  if (!email) {
-    errors.push("email es obligatorio");
-  }
-
-  if (email && !email.includes("@")) {
-    errors.push("email no es válido");
-  }
-
-  if (!temporaryPassword) {
-    errors.push("temporaryPassword es obligatorio");
-  }
 
   if (!newPassword) {
     errors.push("newPassword es obligatorio");
@@ -55,13 +40,6 @@ export function validateChangeTemporaryPasswordBody(body) {
   return {
     ok: errors.length === 0,
     errors,
-    value:
-      errors.length === 0
-        ? {
-            email,
-            temporaryPassword,
-            newPassword,
-          }
-        : null,
+    value: errors.length === 0 ? { newPassword } : null,
   };
 }

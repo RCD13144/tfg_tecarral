@@ -1,6 +1,14 @@
-import { findUserByEmail, updateUserPassword } from "../repositories/users.repository.js";
+import {
+  findUserByEmail,
+  findUserById,
+  updateUserPassword,
+} from "../repositories/users.repository.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
-import { signToken } from "../utils/jwt.js";
+import {
+  signFirstAccessToken,
+  signToken,
+  verifyFirstAccessToken,
+} from "../utils/jwt.js";
 
 export async function login(email, plainPassword) {
   const user = await findUserByEmail(email);
@@ -25,6 +33,10 @@ export async function login(email, plainPassword) {
   if (user.must_change_password) {
     return {
       must_change_password: true,
+      first_access_token: signFirstAccessToken({
+        sub: String(user.id_user),
+        role: user.role,
+      }),
       user: {
         id_user: user.id_user,
         email: user.email,
@@ -54,15 +66,21 @@ export async function login(email, plainPassword) {
   };
 }
 
-export async function changeTemporaryPassword(
-  email,
-  temporaryPassword,
-  newPassword
-) {
-  const user = await findUserByEmail(email);
+export async function changeTemporaryPassword(firstAccessToken, newPassword) {
+  let payload;
+
+  try {
+    payload = verifyFirstAccessToken(firstAccessToken);
+  } catch {
+    const error = new Error("Token de primer acceso inválido o expirado");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const user = await findUserById(payload.sub);
 
   if (!user) {
-    const error = new Error("Credenciales inválidas");
+    const error = new Error("Token de primer acceso inválido o expirado");
     error.statusCode = 401;
     throw error;
   }
@@ -70,17 +88,6 @@ export async function changeTemporaryPassword(
   if (!user.must_change_password) {
     const error = new Error("El usuario no requiere cambio de contraseña");
     error.statusCode = 400;
-    throw error;
-  }
-
-  const temporaryPasswordIsValid = await verifyPassword(
-    temporaryPassword,
-    user.password_hash
-  );
-
-  if (!temporaryPasswordIsValid) {
-    const error = new Error("Credenciales inválidas");
-    error.statusCode = 401;
     throw error;
   }
 

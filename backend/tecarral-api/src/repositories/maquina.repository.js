@@ -4,12 +4,24 @@ import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
 import { REPARACION_ESTADOS } from "../constants/reparacionEstados.js";
 
 function addStringFilter(field, value, values, conditions, upper = false) {
-    values.push(value);
+    const items = Array.isArray(value) ? value.filter((item) => item !== undefined) : [value];
+
+    if (items.length === 0) {
+        return;
+    }
 
     const fn = upper ? "UPPER" : "LOWER";
+    const comparisons = [];
+
+    for (const item of items) {
+        values.push(item);
+        comparisons.push(
+            `${fn}(unaccent(TRIM(${field}))) = ${fn}(unaccent(TRIM($${values.length})))`
+        );
+    }
 
     conditions.push(
-        `${fn}(unaccent(TRIM(${field}))) = ${fn}(unaccent(TRIM($${values.length})))`
+        comparisons.length === 1 ? comparisons[0] : `(${comparisons.join(" OR ")})`
     );
 }
 
@@ -58,7 +70,28 @@ export async function getAllMaquinaria() {
 
 export async function getMaquinariaByIdFromDB(id) {
     const result = await pool.query(
-        "SELECT * FROM maquina WHERE id_maquina = $1",
+        `
+        SELECT
+          m.*,
+          me.ruedas          AS elev_ruedas,
+          me.cap_carga       AS elev_cap_carga,
+          me.replegado_mm    AS elev_replegado_mm,
+          me.elevacion_libre AS elev_elevacion_libre,
+          me.elevacion       AS elev_elevacion,
+          me.desplazamiento  AS elev_desplazamiento,
+          me.posicion        AS elev_posicion,
+          me.antihuella      AS elev_antihuella,
+          me.matricula       AS elev_matricula,
+          me.largo           AS elev_largo,
+          me.alto            AS elev_alto,
+          me.ancho           AS elev_ancho,
+          me.peso_kg         AS elev_peso_kg,
+          me.horquillas      AS elev_horquillas
+        FROM maquina m
+        LEFT JOIN maquina_elevacion me
+          ON me.id_maquina = m.id_maquina
+        WHERE m.id_maquina = $1
+        `,
         [id]
     );
     return result.rows[0] ?? null;

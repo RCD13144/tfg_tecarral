@@ -1,9 +1,8 @@
-import dotenv from "dotenv";
+import "dotenv/config";
+
 import app from "./app.js";
 import { runMigrations } from "./migrations/runMigrations.js";
 import { runData } from "./data/runData.js";
-
-dotenv.config();
 
 const PORT = process.env.PORT ?? 3000;
 

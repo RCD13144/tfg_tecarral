@@ -26,17 +26,23 @@ export async function changeTemporaryPassword(req, res) {
 
     if (!validation.ok) {
       res.status(400).json({ error: validation.errors.join(", ") });
-    } else {
-      const { email, temporaryPassword, newPassword } = validation.value;
-
-      const result = await authService.changeTemporaryPassword(
-        email,
-        temporaryPassword,
-        newPassword
-      );
-
-      res.status(200).json(result);
+      return;
     }
+
+    const authHeader = String(req.headers.authorization ?? "").trim();
+    const [scheme, token] = authHeader.split(" ");
+
+    if (scheme?.toLowerCase() !== "bearer" || !token) {
+      res.status(401).json({
+        error: "Token de primer acceso inválido o expirado",
+      });
+      return;
+    }
+
+    const { newPassword } = validation.value;
+    const result = await authService.changeTemporaryPassword(token, newPassword);
+
+    res.status(200).json(result);
   } catch (e) {
     res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
   }

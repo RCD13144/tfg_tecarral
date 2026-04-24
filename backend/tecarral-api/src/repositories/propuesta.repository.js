@@ -121,6 +121,27 @@ export async function findById(id) {
   return r.rows[0] ?? null;
 }
 
+export async function findByMachineId(idMaquina) {
+  const q = `
+    SELECT
+      id,
+      id_maquina,
+      cliente,
+      estado,
+      direccion,
+      poblacion,
+      fecha_inicio,
+      fecha_fin,
+      precio
+    FROM propuesta_alquiler
+    WHERE id_maquina = $1
+    ORDER BY id DESC;
+  `;
+
+  const r = await pool.query(q, [idMaquina]);
+  return r.rows;
+}
+
 export async function updatePropuestaPendingById(id, patch) {
   const keys = Object.keys(patch);
 
