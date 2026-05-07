@@ -7,6 +7,7 @@ import {
 import {
   crearPropuestaTx,
   findById,
+  findByMachineId,
   updatePropuestaPendingById,
   deletePropuestaById,
   expirePendingPropuestasByEndDate,
@@ -161,4 +162,16 @@ export async function finalizeOrExpirePropuestas() {
     moved_to_transit: moved.moved_count ?? 0,
     moved_machine_ids: moved.machines ?? [],
   };
+}
+
+export async function getPropuestas(filters = {}) {
+  const idMaquina = Number(filters?.id_maquina);
+
+  if (Number.isInteger(idMaquina) && idMaquina > 0) {
+    return findByMachineId(idMaquina);
+  }
+
+  const err = new Error("id_maquina inválido");
+  err.statusCode = 400;
+  throw err;
 }

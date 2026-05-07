@@ -1,4 +1,4 @@
-import * as maquinaService from "../services/maquinaria.service.js";
+﻿import * as maquinaService from "../services/maquinaria.service.js";
 import {
     validateTipoMaquina,
     validateSubtipoMaquina,
@@ -15,51 +15,69 @@ import { normalize } from "../utils/normalize.js";
 import { validateId, parseId } from "../schemas/common.schema.js";
 import { UBICACION_TIPO } from "../constants/ubicacionesTipo.js";
 import { validateMaintenanceStatusPatch } from "../schemas/maquina.schema.js";
-import { validateAbrirIncidenciaBody } from "../schemas/maquina.schema.js";
+import {
+  validateAbrirIncidenciaBody,
+  validateEscalarAveriaGraveBody,
+} from "../schemas/maquina.schema.js";
+
+function readNormalizedQueryValues(query, key) {
+    const rawValue = query?.[key];
+
+    if (rawValue === undefined) {
+        return undefined;
+    }
+
+    const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+    const normalizedValues = values
+        .map((value) => normalize(value))
+        .filter((value) => value !== undefined);
+
+    return normalizedValues.length > 0 ? normalizedValues : undefined;
+}
 
 export async function getMaquinaria(req, res) {
     try {
-        const tipo = normalize(req.query.tipo);
-        const subtipo = normalize(req.query.subtipo);
-        const availability = normalize(req.query.availability);
+        const tipo = readNormalizedQueryValues(req.query, "tipo");
+        const subtipo = readNormalizedQueryValues(req.query, "subtipo");
+        const availability = readNormalizedQueryValues(req.query, "availability");
         const ubicacion = normalize(req.query.ubicacion);
-        const marca = normalize(req.query.marca);
+        const marca = readNormalizedQueryValues(req.query, "marca");
         const q = normalize(req.query.q);
-        const ubicacion_type = normalize(req.query.ubicacion_type);
-        const motor = normalize(req.query.motor);
+        const ubicacion_type = readNormalizedQueryValues(req.query, "ubicacion_type");
+        const motor = readNormalizedQueryValues(req.query, "motor");
 
         let error = null;
 
         if (tipo !== undefined) {
-            const okTipo = validateTipoMaquina(tipo);
+            const okTipo = tipo.every((value) => validateTipoMaquina(value));
             if (!okTipo) {
                 error = "Tipo inválido";
             }
         }
 
         if (error === null && subtipo !== undefined) {
-            const okSubtipo = validateSubtipoMaquina(subtipo);
+            const okSubtipo = subtipo.every((value) => validateSubtipoMaquina(value));
             if (!okSubtipo) {
                 error = "Subtipo inválido";
             }
         }
 
         if (error === null && availability !== undefined) {
-            const okAvailability = validateAvailability(availability);
+            const okAvailability = availability.every((value) => validateAvailability(value));
             if (!okAvailability) {
                 error = "Disponibilidad inválida";
             }
         }
 
         if (error === null && ubicacion_type !== undefined) {
-            const okUbicacionType = validateUbicacionType(ubicacion_type);
+            const okUbicacionType = ubicacion_type.every((value) => validateUbicacionType(value));
             if (!okUbicacionType) {
                 error = "Ubicación inválida";
             }
         }
 
         if (error === null && motor !== undefined) {
-            const okMotorType = validateMotorType(motor);
+            const okMotorType = motor.every((value) => validateMotorType(value));
             if (!okMotorType) {
                 error = "Tipo de motor inválido";
             }
@@ -165,6 +183,16 @@ export async function suggestTipo(req, res) {
         return res.json([]);
 
     const suggestions = await maquinaService.suggestTipofromDB(text);
+    res.json(suggestions);
+}
+
+export async function suggestIdMaquina(req, res) {
+    const text = req.query.text;
+
+    if (!text || text.length < 1)
+        return res.json([]);
+
+    const suggestions = await maquinaService.suggestIdMaquinaFromDB(text);
     res.json(suggestions);
 }
 
@@ -403,11 +431,21 @@ export async function marcarUbicacion(req, res, ubicacionTipo) {
 
       const result = await maquinaService.marcarRecibidaEnBase(idMaquina, ubicacionTipo);
 
-      if (!result.ok) {
-        if (result.reason === "NOT_FOUND") {
+        if (!result.ok) {
+          if (result.reason === "NOT_FOUND") {
           res.status(404).json({ error: "Máquina no encontrada" });
         } else if (result.reason === "NOT_IN_TRANSITO") {
           res.status(409).json({ error: "La máquina debe estar en TRANSITO para marcar TALLER/ALMACEN" });
+        } else if (result.reason === "NOT_SEVERE_BREAKDOWN") {
+          res.status(409).json({
+            error:
+              "Solo se puede recibir en TALLER/ALMACEN desde TRANSITO cuando la máquina está en AVERIADA_GRAVE",
+          });
+        } else if (result.reason === "ALBARAN_NOT_SIGNED") {
+          res.status(409).json({
+            error:
+              "No se puede marcar TALLER/ALMACEN hasta que el albarán de la avería grave esté firmado",
+          });
         } else {
           res.status(409).json({ error: "Operación no permitida" });
         }
@@ -459,6 +497,11 @@ async function mover(req, res, destino) {
           res.status(404).json({ error: "Máquina no encontrada" });
         } else if (result.reason === "RENTED") {
           res.status(409).json({ error: "No se puede mover: la máquina está ALQUILADA" });
+        } else if (result.reason === "MOVE_NOT_ALLOWED") {
+          res.status(409).json({
+            error:
+              "No se puede mover esta máquina a otra base desde su ubicación o estado actual",
+          });
         } else {
           res.status(409).json({ error: "Operación no permitida" });
         }
@@ -584,11 +627,20 @@ export async function escalarAveriaGrave(req, res) {
       throw err;
     }
 
-    const result = await maquinaService.escalarAveriaGraveIntoDB(idMaquina);
+    if (!validateEscalarAveriaGraveBody(req.body)) {
+      res.status(400).json({ error: "Body inválido para escalar avería grave" });
+      return;
+    }
+
+    const result = await maquinaService.escalarAveriaGraveIntoDB(
+      idMaquina,
+      req.body?.comentario ?? null
+    );
     res.status(200).json(result);
   } catch (e) {
     res.status(e.statusCode ?? 500).json({ error: e.message, meta: e.meta });
   }
 }
+
 
 

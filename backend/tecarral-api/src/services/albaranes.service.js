@@ -1,4 +1,8 @@
-import { firmarAlbaranTx } from "../repositories/albaranes.repository.js";
+import {
+  firmarAlbaranTx,
+  getAlbaranDetailById,
+  getAlbaranesByUser,
+} from "../repositories/albaranes.repository.js";
 import { sendMail } from "../utils/mailer.js";
 import { buildAlbaranFirmadoEmail } from "../templates/albaranFirmadoEmail.template.js";
 
@@ -7,6 +11,14 @@ function base64ToBuffer(input) {
   const parts = s.split("base64,");
   const b64 = parts.length === 2 ? parts[1] : s;
   return Buffer.from(b64, "base64");
+}
+
+export function getAlbaranes(payload) {
+  return getAlbaranesByUser(payload);
+}
+
+export function getAlbaranDetail(payload) {
+  return getAlbaranDetailById(payload);
 }
 
 export async function firmarAlbaranIntoDB(idAlbaran, payload) {

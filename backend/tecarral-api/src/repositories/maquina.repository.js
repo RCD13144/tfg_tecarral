@@ -4,12 +4,24 @@ import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
 import { REPARACION_ESTADOS } from "../constants/reparacionEstados.js";
 
 function addStringFilter(field, value, values, conditions, upper = false) {
-    values.push(value);
+    const items = Array.isArray(value) ? value.filter((item) => item !== undefined) : [value];
+
+    if (items.length === 0) {
+        return;
+    }
 
     const fn = upper ? "UPPER" : "LOWER";
+    const comparisons = [];
+
+    for (const item of items) {
+        values.push(item);
+        comparisons.push(
+            `${fn}(unaccent(TRIM(${field}))) = ${fn}(unaccent(TRIM($${values.length})))`
+        );
+    }
 
     conditions.push(
-        `${fn}(unaccent(TRIM(${field}))) = ${fn}(unaccent(TRIM($${values.length})))`
+        comparisons.length === 1 ? comparisons[0] : `(${comparisons.join(" OR ")})`
     );
 }
 
@@ -58,7 +70,28 @@ export async function getAllMaquinaria() {
 
 export async function getMaquinariaByIdFromDB(id) {
     const result = await pool.query(
-        "SELECT * FROM maquina WHERE id_maquina = $1",
+        `
+        SELECT
+          m.*,
+          me.ruedas          AS elev_ruedas,
+          me.cap_carga       AS elev_cap_carga,
+          me.replegado_mm    AS elev_replegado_mm,
+          me.elevacion_libre AS elev_elevacion_libre,
+          me.elevacion       AS elev_elevacion,
+          me.desplazamiento  AS elev_desplazamiento,
+          me.posicion        AS elev_posicion,
+          me.antihuella      AS elev_antihuella,
+          me.matricula       AS elev_matricula,
+          me.largo           AS elev_largo,
+          me.alto            AS elev_alto,
+          me.ancho           AS elev_ancho,
+          me.peso_kg         AS elev_peso_kg,
+          me.horquillas      AS elev_horquillas
+        FROM maquina m
+        LEFT JOIN maquina_elevacion me
+          ON me.id_maquina = m.id_maquina
+        WHERE m.id_maquina = $1
+        `,
         [id]
     );
     return result.rows[0] ?? null;
@@ -100,6 +133,28 @@ export async function findMaquinaria(filters) {
     `;
     const result = await pool.query(query, base.values);
     return result.rows;
+  }
+
+  {
+    const trimmedQuery = String(q).trim();
+
+    if (/^\d+$/.test(trimmedQuery)) {
+      const values = [...base.values, `${trimmedQuery}%`];
+      const idx = values.length;
+
+      const where = base.where.length > 0
+        ? `${base.where} AND CAST(m.id_maquina AS TEXT) ILIKE $${idx}`
+        : `WHERE CAST(m.id_maquina AS TEXT) ILIKE $${idx}`;
+
+      const query = `
+        ${SELECT_JOINED}
+        ${where}
+        ORDER BY m.id_maquina ASC
+      `;
+
+      const result = await pool.query(query, values);
+      if (result.rows.length > 0) return result.rows;
+    }
   }
 
   {
@@ -294,6 +349,19 @@ export async function suggestTipo(text) {
 
     const result = await pool.query(query, [text]);
     return result.rows.map(r => r.tipo_maquina);
+}
+
+export async function suggestIdMaquina(text) {
+    const query = `
+        SELECT CAST(id_maquina AS text) AS id_maquina
+        FROM maquina
+        WHERE CAST(id_maquina AS text) LIKE $1 || '%'
+        ORDER BY id_maquina ASC
+        LIMIT 8
+    `;
+
+    const result = await pool.query(query, [String(text).trim()]);
+    return result.rows.map((r) => r.id_maquina);
 }
 
 export async function crearMaquina(
@@ -507,14 +575,51 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
     if (lockRes.rowCount === 0) {
       await client.query("ROLLBACK");
       result = { ok: false, reason: "NOT_FOUND", data: null };
-    } else {
-      const maquina = lockRes.rows[0];
-      const ubicacionActual = maquina.ubicacion_tipo;
-
-      if (ubicacionActual !== "TRANSITO") {
-        await client.query("ROLLBACK");
-        result = { ok: false, reason: "NOT_IN_TRANSITO", data: null };
       } else {
+        const maquina = lockRes.rows[0];
+        const ubicacionActual = maquina.ubicacion_tipo;
+        const reparacionTerminadaRes = await client.query(
+          `
+          SELECT 1
+          FROM reparacion
+          WHERE id_maquina = $1
+            AND estado = 'TERMINADA'
+          LIMIT 1
+          `,
+          [idMaquina]
+        );
+
+        if (ubicacionActual !== "TRANSITO") {
+          await client.query("ROLLBACK");
+          result = { ok: false, reason: "NOT_IN_TRANSITO", data: null };
+        } else {
+        const averiadaGrave =
+          maquina.maintenance_status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
+        const vieneDeReparacionGrave = reparacionTerminadaRes.rowCount > 0;
+
+        if (!averiadaGrave && !vieneDeReparacionGrave) {
+          await client.query("ROLLBACK");
+          result = { ok: false, reason: "NOT_SEVERE_BREAKDOWN", data: null };
+        } else {
+        const albaranRes = await client.query(
+          `
+          SELECT a.estado
+          FROM reparacion r
+          JOIN albaran a
+            ON a.id_albaran = r.id_albaran
+          WHERE r.id_maquina = $1
+          ORDER BY r.id_reparacion DESC
+          LIMIT 1
+          `,
+          [idMaquina]
+        );
+
+        const estadoAlbaran = albaranRes.rows[0]?.estado ?? null;
+
+        if (estadoAlbaran !== "FIRMADO") {
+          await client.query("ROLLBACK");
+          result = { ok: false, reason: "ALBARAN_NOT_SIGNED", data: null };
+        } else {
         const finalizadaRes = await client.query(
           `
           SELECT 1
@@ -527,9 +632,6 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
         );
 
         const alquilerFinalizado = finalizadaRes.rowCount > 0;
-        const averiadaGrave =
-          maquina.maintenance_status === "AVERIADA_GRAVE";
-
         const debeQuedarDisponible =
           alquilerFinalizado && !averiadaGrave;
 
@@ -556,6 +658,8 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
         await client.query("COMMIT");
 
         result = { ok: true, reason: null, data: updateRes.rows[0] };
+        }
+        }
       }
     }
   } catch (e) {
@@ -651,7 +755,7 @@ export async function moverEntreBasesTx(idMaquina, ubicacionTipo) {
 
     const lockRes = await client.query(
       `
-      SELECT id_maquina, availability_status
+      SELECT id_maquina, availability_status, maintenance_status, ubicacion_tipo
       FROM maquina
       WHERE id_maquina = $1
       FOR UPDATE;
@@ -663,11 +767,21 @@ export async function moverEntreBasesTx(idMaquina, ubicacionTipo) {
       await client.query("ROLLBACK");
       result = { ok: false, reason: "NOT_FOUND", data: null };
     } else {
-      const status = lockRes.rows[0].availability_status;
+      const maquina = lockRes.rows[0];
+      const status = maquina.availability_status;
+      const maintenanceStatus = maquina.maintenance_status;
+      const ubicacionActual = maquina.ubicacion_tipo;
 
       if (status === "ALQUILADA") {
         await client.query("ROLLBACK");
         result = { ok: false, reason: "RENTED", data: null };
+      } else if (
+        ubicacionActual === "CLIENTE" ||
+        ubicacionActual === "TRANSITO" ||
+        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA
+      ) {
+        await client.query("ROLLBACK");
+        result = { ok: false, reason: "MOVE_NOT_ALLOWED", data: null };
       } else {
         const ubicacionText = getUbicacionTextByTipo(ubicacionTipo);
 
@@ -813,21 +927,31 @@ export async function abrirIncidenciaTx({
     const ubicacionTipo =
       maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
         ? "TRANSITO"
-        : null;
+        : "CLIENTE";
+
+    const ubicacionCliente = `${propuesta.direccion}, ${propuesta.poblacion}`;
 
     const updateFields = ["maintenance_status = $2"];
     const updateValues = [idMaquina, maintenanceStatus];
     let paramIndex = 3;
 
-    if (logisticsStatus !== null) {
-      updateFields.push(`logistics_status = $${paramIndex}`);
-      updateValues.push(logisticsStatus);
-      paramIndex += 1;
-    }
+    updateFields.push(`logistics_status = $${paramIndex}`);
+    updateValues.push(logisticsStatus);
+    paramIndex += 1;
 
     if (ubicacionTipo !== null) {
       updateFields.push(`ubicacion_tipo = $${paramIndex}`);
       updateValues.push(ubicacionTipo);
+      paramIndex += 1;
+    }
+
+    if (maintenanceStatus === MAINTENANCE_STATUS.AVERIADA) {
+      updateFields.push(`ubicacion_ref_id = $${paramIndex}`);
+      updateValues.push(propuestaAlquilerId);
+      paramIndex += 1;
+
+      updateFields.push(`ubicacion = $${paramIndex}`);
+      updateValues.push(ubicacionCliente);
       paramIndex += 1;
     }
 
@@ -952,7 +1076,7 @@ function buildErr(statusCode, message, meta) {
   return err;
 }
 
-export async function escalarAveriaGraveTx({ idMaquina }) {
+export async function escalarAveriaGraveTx({ idMaquina, comentario }) {
   const client = await pool.connect();
 
   try {
@@ -1005,16 +1129,38 @@ export async function escalarAveriaGraveTx({ idMaquina }) {
     await client.query(
       `
       UPDATE public.reparacion
-      SET id_user_asignado = NULL, estado = 'PENDIENTE_PRESUPUESTO'
+      SET
+        id_user_asignado = NULL,
+        estado = 'PENDIENTE_PRESUPUESTO',
+        comentario = COALESCE($2, comentario)
       WHERE id_maquina = $1
         AND estado NOT IN ('TERMINADA','CANCELADA')
       `,
-      [idMaquina]
+      [idMaquina, comentario ?? null]
+    );
+
+    await client.query(
+      `
+      UPDATE public.albaran
+      SET observaciones = COALESCE($2, observaciones)
+      WHERE id_albaran = (
+        SELECT r.id_albaran
+        FROM public.reparacion r
+        WHERE r.id_maquina = $1
+          AND r.estado NOT IN ('TERMINADA', 'CANCELADA')
+        ORDER BY r.id_reparacion DESC
+        LIMIT 1
+      )
+      `,
+      [idMaquina, comentario ?? null]
     );
 
     await client.query("COMMIT");
 
-    return { id_maquina: idMaquina, maintenance_status: MAINTENANCE_STATUS.AVERIADA_GRAVE };
+    return {
+      id_maquina: idMaquina,
+      maintenance_status: MAINTENANCE_STATUS.AVERIADA_GRAVE,
+    };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

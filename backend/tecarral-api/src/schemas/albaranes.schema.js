@@ -2,6 +2,8 @@ function isNonEmptyString(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+const ALBARAN_ESTADOS = ["BORRADOR", "FIRMADO"];
+
 function isBase64Payload(v) {
   if (!isNonEmptyString(v)) return false;
 
@@ -29,4 +31,16 @@ export function validateFirmarAlbaranBody(body) {
   }
 
   return true;
+}
+
+export function validateAlbaranEstadoQuery(value) {
+  if (value === undefined || value === null || value === "") {
+    return true;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return ALBARAN_ESTADOS.includes(value.trim().toUpperCase());
 }

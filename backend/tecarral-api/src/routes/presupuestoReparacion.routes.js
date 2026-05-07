@@ -11,6 +11,6 @@ import {requireRole} from "../middlewares/roles.middleware.js"
 const router = Router();
 
 router.post("/", requireAuth, requireRole("ADMIN"), crearPresupuestoReparacion);
-router.get("/:id", getPresupuestoReparacionById);
+router.get("/:id", requireAuth, getPresupuestoReparacionById);
 
 export default router;

@@ -19,7 +19,11 @@ function getJwtAudience() {
 }
 
 function getJwtExpiresIn() {
-  return process.env.JWT_EXPIRES_IN || "15m";
+  return process.env.JWT_EXPIRES_IN || "8h";
+}
+
+function getFirstAccessJwtExpiresIn() {
+  return process.env.JWT_FIRST_ACCESS_EXPIRES_IN || "8h";
 }
 
 export function signToken(payload) {
@@ -33,6 +37,24 @@ export function signToken(payload) {
   });
 }
 
+export function signFirstAccessToken(payload) {
+  const secret = getJwtSecret();
+
+  return jwt.sign(
+    {
+      ...payload,
+      purpose: "first-access",
+    },
+    secret,
+    {
+      algorithm: "HS256",
+      expiresIn: getFirstAccessJwtExpiresIn(),
+      issuer: getJwtIssuer(),
+      audience: getJwtAudience(),
+    }
+  );
+}
+
 export function verifyToken(token) {
   const secret = getJwtSecret();
 
@@ -41,4 +63,16 @@ export function verifyToken(token) {
     issuer: getJwtIssuer(),
     audience: getJwtAudience(),
   });
+}
+
+export function verifyFirstAccessToken(token) {
+  const payload = verifyToken(token);
+
+  if (payload?.purpose !== "first-access") {
+    const error = new Error("Token de primer acceso inválido o expirado");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return payload;
 }

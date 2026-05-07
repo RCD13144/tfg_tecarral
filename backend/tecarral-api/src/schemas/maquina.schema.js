@@ -269,3 +269,13 @@ export function validateAbrirIncidenciaBody(body) {
 
   return okStatus && okPropuesta && okComentario;
 }
+
+export function validateEscalarAveriaGraveBody(body) {
+  const comentario = body?.comentario;
+
+  return (
+    comentario === undefined ||
+    comentario === null ||
+    (typeof comentario === "string" && comentario.length <= 2000)
+  );
+}

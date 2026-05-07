@@ -8,6 +8,7 @@ import {
   suggestNS,
   suggestMotor,
   suggestTipo,
+  suggestIdMaquina,
   crearMaquina,
   editarMaquinariaById,
   deleteMaquinariaById,
@@ -27,28 +28,29 @@ const router = Router();
 
 router.get("/", getMaquinaria);
 
-router.get("/suggest/modelo", suggestModelo);
-router.get("/suggest/marca", suggestMarca);
-router.get("/suggest/subtipo", suggestSubtipo);
-router.get("/suggest/ns", suggestNS);
-router.get("/suggest/motor", suggestMotor);
-router.get("/suggest/tipo", suggestTipo);
+router.get("/suggest/modelo", requireAuth, suggestModelo);
+router.get("/suggest/marca", requireAuth, suggestMarca);
+router.get("/suggest/subtipo", requireAuth, suggestSubtipo);
+router.get("/suggest/ns", requireAuth, suggestNS);
+router.get("/suggest/motor", requireAuth, suggestMotor);
+router.get("/suggest/tipo", requireAuth, suggestTipo);
+router.get("/suggest/id", requireAuth, suggestIdMaquina);
 
-router.post("/recompute-logistics", recomputeLogistics);
+router.post("/recompute-logistics", requireAuth, recomputeLogistics);
 
-router.post("/", crearMaquina);
+router.post("/", requireAuth, crearMaquina);
 
-router.get("/:id", getMaquinaById);        
-router.patch("/:id", editarMaquinariaById);
-router.delete("/:id", deleteMaquinariaById);
+router.get("/:id", requireAuth,  getMaquinaById);        
+router.patch("/:id", requireAuth, editarMaquinariaById);
+router.delete("/:id", requireAuth, deleteMaquinariaById);
 
-router.post("/:id/mark-delivered", markDelivered);
-router.patch("/:id/maintenance-status", cambiarMaintenanceStatus);
+router.post("/:id/mark-delivered", requireAuth, markDelivered);
+router.patch("/:id/maintenance-status", requireAuth, cambiarMaintenanceStatus);
 router.post("/:id/abrir-incidencia", requireAuth, abrirIncidencia);
 router.patch("/:id/escalar-grave", requireAuth, escalarAveriaGrave);
-router.post("/:id/location/taller", marcarUbicacionTaller);
-router.post("/:id/location/almacen", marcarUbicacionAlmacen);
-router.post("/:id/move/taller", moverATaller);
-router.post("/:id/move/almacen", moverAAlmacen);
+router.post("/:id/location/taller", requireAuth, marcarUbicacionTaller);
+router.post("/:id/location/almacen", requireAuth, marcarUbicacionAlmacen);
+router.post("/:id/move/taller", requireAuth, moverATaller);
+router.post("/:id/move/almacen", requireAuth, moverAAlmacen);
 
 export default router;

@@ -8,6 +8,7 @@ import {
   suggestNS,
   suggestMotor,
   suggestTipo,
+  suggestIdMaquina,
   crearMaquina,
   editarMaquina,
   deleteMaquina,
@@ -53,7 +54,13 @@ function isMaintenanceTransitionAllowed(current, next) {
 }
 
 export async function getMaquinaria(filters = {}) {
-  const hasFilters = Object.values(filters).some((v) => v !== undefined);
+  const hasFilters = Object.values(filters).some((value) => {
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+
+    return value !== undefined;
+  });
 
   if (hasFilters) {
     const maquinas = await findMaquinaria(filters);
@@ -91,6 +98,11 @@ export async function suggestMotorfromDB(text) {
 
 export async function suggestTipofromDB(text) {
   const maquina = await suggestTipo(text);
+  return maquina;
+}
+
+export async function suggestIdMaquinaFromDB(text) {
+  const maquina = await suggestIdMaquina(text);
   return maquina;
 }
 
@@ -253,6 +265,6 @@ export async function abrirIncidenciaIntoDB(
   return result;
 }
 
-export async function escalarAveriaGraveIntoDB(idMaquina) {
-  return escalarAveriaGraveTx({ idMaquina });
+export async function escalarAveriaGraveIntoDB(idMaquina, comentario) {
+  return escalarAveriaGraveTx({ idMaquina, comentario: comentario ?? null });
 }

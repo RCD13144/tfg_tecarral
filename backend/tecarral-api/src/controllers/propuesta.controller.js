@@ -2,6 +2,18 @@ import * as propuestaService from "../services/propuesta.service.js";
 import { validatePropuestaCreate, validatePropuestaUpdate, validateExpireQuery } from "../schemas/propuesta.schema.js";
 import { validateId, parseId } from "../schemas/common.schema.js";
 
+export async function getPropuestas(req, res) {
+  try {
+    const propuestas = await propuestaService.getPropuestas({
+      id_maquina: req.query?.id_maquina,
+    });
+
+    res.status(200).json(propuestas);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
+  }
+}
+
 export async function crearPropuesta(req, res) {
   try {
     const body = req.body;
