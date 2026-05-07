@@ -8,6 +8,67 @@ function buildErr(statusCode, message, meta) {
   return err;
 }
 
+const ALBARAN_SELECT_FIELDS = `
+  id_albaran,
+  estado,
+  firmado_at,
+  id_maquina,
+  propuesta_alquiler_id,
+  cliente,
+  direccion,
+  telefono,
+  poblacion,
+  cp,
+  email_cliente,
+  marca,
+  modelo,
+  ns,
+  observaciones
+`;
+
+export async function getAlbaranesByUser({ idUser, estado = null }) {
+  const values = [idUser];
+  const filters = ["id_user = $1"];
+
+  if (estado) {
+    values.push(estado);
+    filters.push(`estado = $${values.length}`);
+  }
+
+  const result = await pool.query(
+    `
+    SELECT ${ALBARAN_SELECT_FIELDS}
+    FROM public.albaran
+    WHERE ${filters.join(" AND ")}
+    ORDER BY
+      CASE WHEN firmado_at IS NULL THEN 1 ELSE 0 END,
+      firmado_at DESC NULLS LAST,
+      id_albaran DESC
+    `,
+    values
+  );
+
+  return result.rows;
+}
+
+export async function getAlbaranDetailById({ idAlbaran, idUser }) {
+  const result = await pool.query(
+    `
+    SELECT ${ALBARAN_SELECT_FIELDS}
+    FROM public.albaran
+    WHERE id_albaran = $1
+      AND id_user = $2
+    `,
+    [idAlbaran, idUser]
+  );
+
+  if (result.rows.length === 0) {
+    throw buildErr(404, "Albarán no encontrado", { idAlbaran, idUser });
+  }
+
+  return result.rows[0];
+}
+
 export async function firmarAlbaranTx({
   idAlbaran,
   idUser,
@@ -53,20 +114,15 @@ export async function firmarAlbaranTx({
       });
     }
 
-    await client.query(
+    const reparacionRes = await client.query(
       `
-      UPDATE public.albaran
-      SET
-        observaciones = COALESCE($2, observaciones),
-        firma_cliente = $3,
-        firma_tecnico = $4,
-        firma_cliente_mime = COALESCE($5, firma_cliente_mime),
-        firma_tecnico_mime = COALESCE($6, firma_tecnico_mime),
-        estado = 'FIRMADO',
-        firmado_at = NOW()
+      SELECT id_reparacion, estado
+      FROM public.reparacion
       WHERE id_albaran = $1
+      ORDER BY id_reparacion DESC
+      LIMIT 1
       `,
-      [idAlbaran, observaciones, firmaCliente, firmaTecnico, firmaClienteMime, firmaTecnicoMime]
+      [idAlbaran]
     );
 
     const maqRes = await client.query(
@@ -86,6 +142,40 @@ export async function firmarAlbaranTx({
     }
 
     const maquina = maqRes.rows[0];
+    const reparacion = reparacionRes.rows[0] ?? null;
+
+    if (
+      reparacion &&
+      reparacion.estado !== "TERMINADA" &&
+      maquina.maintenance_status !== MAINTENANCE_STATUS.AVERIADA_GRAVE
+    ) {
+      throw buildErr(
+        409,
+        "No se puede firmar el albarán: la máquina debe repararse antes",
+        {
+          idAlbaran,
+          id_reparacion: reparacion.id_reparacion,
+          reparacion_estado: reparacion.estado,
+          maintenance_status: maquina.maintenance_status,
+        }
+      );
+    }
+
+    await client.query(
+      `
+      UPDATE public.albaran
+      SET
+        observaciones = COALESCE($2, observaciones),
+        firma_cliente = $3,
+        firma_tecnico = $4,
+        firma_cliente_mime = COALESCE($5, firma_cliente_mime),
+        firma_tecnico_mime = COALESCE($6, firma_tecnico_mime),
+        estado = 'FIRMADO',
+        firmado_at = NOW()
+      WHERE id_albaran = $1
+      `,
+      [idAlbaran, observaciones, firmaCliente, firmaTecnico, firmaClienteMime, firmaTecnicoMime]
+    );
 
     let reparacionUpdated = false;
 

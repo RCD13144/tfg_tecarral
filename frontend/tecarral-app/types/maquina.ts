@@ -92,5 +92,5 @@ export interface ProposalFormData {
 export interface SearchSuggestion {
   id: string;
   label: string;
-  source: 'modelo' | 'marca' | 'subtipo' | 'tipo' | 'ns' | 'motor';
+  source: 'id' | 'modelo' | 'marca' | 'subtipo' | 'tipo' | 'ns' | 'motor';
 }

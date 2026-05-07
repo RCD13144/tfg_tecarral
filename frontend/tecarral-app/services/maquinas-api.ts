@@ -66,6 +66,42 @@ export function updateMachineMaintenanceStatus(
   );
 }
 
+export function openMachineIncidence(
+  idMaquina: number,
+  payload: {
+    maintenance_status: 'AVERIADA' | 'AVERIADA_GRAVE';
+    propuesta_alquiler_id: number;
+    comentario: string;
+  },
+  token: string
+) {
+  return apiRequest<{ id_maquina: number; maintenance_status: string; id_albaran?: number }>(
+    `/maquinas/${idMaquina}/abrir-incidencia`,
+    {
+      method: 'POST',
+      token,
+      body: payload,
+    }
+  );
+}
+
+export function escalateMachineIncidence(
+  idMaquina: number,
+  payload: {
+    comentario: string;
+  },
+  token: string
+) {
+  return apiRequest<{ id_maquina: number; maintenance_status: string }>(
+    `/maquinas/${idMaquina}/escalar-grave`,
+    {
+      method: 'PATCH',
+      token,
+      body: payload,
+    }
+  );
+}
+
 export function moveMachineBetweenBases(
   idMaquina: number,
   destination: 'taller' | 'almacen',
@@ -115,11 +151,12 @@ async function getSuggestionsBySource(
 export async function getMachineSuggestions(text: string, token: string) {
   const trimmedText = text.trim();
 
-  if (trimmedText.length < 2) {
+  if (trimmedText.length < 2 && !/^\d+$/.test(trimmedText)) {
     return [];
   }
 
   const results = await Promise.all([
+    getSuggestionsBySource('id', trimmedText, token),
     getSuggestionsBySource('modelo', trimmedText, token),
     getSuggestionsBySource('marca', trimmedText, token),
     getSuggestionsBySource('subtipo', trimmedText, token),

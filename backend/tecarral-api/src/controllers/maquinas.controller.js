@@ -15,7 +15,10 @@ import { normalize } from "../utils/normalize.js";
 import { validateId, parseId } from "../schemas/common.schema.js";
 import { UBICACION_TIPO } from "../constants/ubicacionesTipo.js";
 import { validateMaintenanceStatusPatch } from "../schemas/maquina.schema.js";
-import { validateAbrirIncidenciaBody } from "../schemas/maquina.schema.js";
+import {
+  validateAbrirIncidenciaBody,
+  validateEscalarAveriaGraveBody,
+} from "../schemas/maquina.schema.js";
 
 function readNormalizedQueryValues(query, key) {
     const rawValue = query?.[key];
@@ -48,35 +51,35 @@ export async function getMaquinaria(req, res) {
         if (tipo !== undefined) {
             const okTipo = tipo.every((value) => validateTipoMaquina(value));
             if (!okTipo) {
-                error = "Tipo invÃ¡lido";
+                error = "Tipo inválido";
             }
         }
 
         if (error === null && subtipo !== undefined) {
             const okSubtipo = subtipo.every((value) => validateSubtipoMaquina(value));
             if (!okSubtipo) {
-                error = "Subtipo invÃ¡lido";
+                error = "Subtipo inválido";
             }
         }
 
         if (error === null && availability !== undefined) {
             const okAvailability = availability.every((value) => validateAvailability(value));
             if (!okAvailability) {
-                error = "Disponibilidad invÃ¡lida";
+                error = "Disponibilidad inválida";
             }
         }
 
         if (error === null && ubicacion_type !== undefined) {
             const okUbicacionType = ubicacion_type.every((value) => validateUbicacionType(value));
             if (!okUbicacionType) {
-                error = "UbicaciÃ³n invÃ¡lida";
+                error = "Ubicación inválida";
             }
         }
 
         if (error === null && motor !== undefined) {
             const okMotorType = motor.every((value) => validateMotorType(value));
             if (!okMotorType) {
-                error = "Tipo de motor invÃ¡lido";
+                error = "Tipo de motor inválido";
             }
         }
 
@@ -107,13 +110,13 @@ export async function getMaquinariaById(req, res) {
         const idParam = req.params.id;
 
         if (!validateId(idParam)) {
-            res.status(400).json({ error: "Id invÃ¡lido" });
+            res.status(400).json({ error: "Id inválido" });
         } else {
             const id = Number(idParam);
             const maquina = await maquinaService.getMaquinaById(id);
 
             if (maquina === null) {
-                res.status(404).json({ error: "MÃ¡quina no encontrada" });
+                res.status(404).json({ error: "Máquina no encontrada" });
             } else {
                 res.status(200).json(maquina);
             }
@@ -183,6 +186,16 @@ export async function suggestTipo(req, res) {
     res.json(suggestions);
 }
 
+export async function suggestIdMaquina(req, res) {
+    const text = req.query.text;
+
+    if (!text || text.length < 1)
+        return res.json([]);
+
+    const suggestions = await maquinaService.suggestIdMaquinaFromDB(text);
+    res.json(suggestions);
+}
+
 export async function crearMaquina(req, res) {
     try {
         const {
@@ -213,7 +226,7 @@ export async function crearMaquina(req, res) {
 
 
         if (!subtipoOk || !motorOk || !tipoOk || !ubicacion_tipoOk) {
-            e = "Tipo, subtipo, motor o tipo de ubicaciÃ³n invÃ¡lido";
+            e = "Tipo, subtipo, motor o tipo de ubicación inválido";
         } else {
             const maquina = await maquinaService.crearMaquinaIntoDB(
                 subtipo,
@@ -253,7 +266,7 @@ export async function editarMaquinariaById(req, res) {
         const idParam = req.params.id;
 
         if (!validateId(idParam)) {
-            res.status(400).json({ error: "Id invÃ¡lido" });
+            res.status(400).json({ error: "Id inválido" });
             return;
         }
 
@@ -299,27 +312,27 @@ export async function editarMaquinariaById(req, res) {
         let error = null;
 
         if (tipo !== undefined && !validateTipoMaquina(tipo)) {
-            error = "Tipo invÃ¡lido";
+            error = "Tipo inválido";
         }
 
         if (error === null && subtipo !== undefined && !validateSubtipoMaquina(subtipo)) {
-            error = "Subtipo invÃ¡lido";
+            error = "Subtipo inválido";
         }
 
         if (error === null && availability !== undefined && !validateAvailability(availability)) {
-            error = "Disponibilidad invÃ¡lida";
+            error = "Disponibilidad inválida";
         }
 
         if (error === null && ubicacionTipoNorm !== undefined && !validateUbicacionType(ubicacionTipoNorm)) {
-            error = "Tipo de ubicaciÃ³n invÃ¡lido";
+            error = "Tipo de ubicación inválido";
         }
 
         if (error === null && motorNorm !== undefined && !validateMotorType(motorNorm)) {
-            error = "Tipo de motor invÃ¡lido";
+            error = "Tipo de motor inválido";
         }
 
         if (error === null && seguroRaw !== undefined && seguro === undefined) {
-            error = "Seguro invÃ¡lido (usa true/false)";
+            error = "Seguro inválido (usa true/false)";
         }
 
         if (error !== null) {
@@ -352,7 +365,7 @@ export async function editarMaquinariaById(req, res) {
         const updated = await maquinaService.editarMaquinariaByIdFromDB(id, patch);
 
         if (updated === null) {
-            res.status(404).json({ error: "MÃ¡quina no encontrada" });
+            res.status(404).json({ error: "Máquina no encontrada" });
         } else {
             res.status(200).json(updated);
         }
@@ -366,14 +379,14 @@ export async function deleteMaquinariaById(req, res) {
         const id = Number(req.params.id);
 
         if (!validateId(id)) {
-            return res.status(400).json({ error: "Id invÃ¡lido" });
+            return res.status(400).json({ error: "Id inválido" });
         }
 
 
         const deleted = maquinaService.deleteMaquinariaByIdFromDB(id);
 
         if (!deleted) {
-            return res.status(404).json({ error: "MÃ¡quina no encontrada" });
+            return res.status(404).json({ error: "Máquina no encontrada" });
         }
 
         return res.status(204).send();
@@ -388,7 +401,7 @@ export async function markDelivered(req, res) {
         const idParam = req.params.id;
 
         if (!validateId(idParam)) {
-            res.status(400).json({ error: "Id invÃ¡lido" });
+            res.status(400).json({ error: "Id inválido" });
             return;
         }
 
@@ -397,7 +410,7 @@ export async function markDelivered(req, res) {
         const result = await maquinaService.markDelivered(idMaquina);
 
         if (!result.ok) {
-            res.status(409).json({ error: "No existe propuesta aceptada para esta mÃ¡quina" });
+            res.status(409).json({ error: "No existe propuesta aceptada para esta máquina" });
             return;
         }
 
@@ -412,19 +425,29 @@ export async function marcarUbicacion(req, res, ubicacionTipo) {
     const idParam = req.params.id;
 
     if (!validateId(idParam)) {
-      res.status(400).json({ error: "Id invÃ¡lido" });
+      res.status(400).json({ error: "Id inválido" });
     } else {
       const idMaquina = parseId(idParam);
 
       const result = await maquinaService.marcarRecibidaEnBase(idMaquina, ubicacionTipo);
 
-      if (!result.ok) {
-        if (result.reason === "NOT_FOUND") {
-          res.status(404).json({ error: "MÃ¡quina no encontrada" });
+        if (!result.ok) {
+          if (result.reason === "NOT_FOUND") {
+          res.status(404).json({ error: "Máquina no encontrada" });
         } else if (result.reason === "NOT_IN_TRANSITO") {
-          res.status(409).json({ error: "La mÃ¡quina debe estar en TRANSITO para marcar TALLER/ALMACEN" });
+          res.status(409).json({ error: "La máquina debe estar en TRANSITO para marcar TALLER/ALMACEN" });
+        } else if (result.reason === "NOT_SEVERE_BREAKDOWN") {
+          res.status(409).json({
+            error:
+              "Solo se puede recibir en TALLER/ALMACEN desde TRANSITO cuando la máquina está en AVERIADA_GRAVE",
+          });
+        } else if (result.reason === "ALBARAN_NOT_SIGNED") {
+          res.status(409).json({
+            error:
+              "No se puede marcar TALLER/ALMACEN hasta que el albarán de la avería grave esté firmado",
+          });
         } else {
-          res.status(409).json({ error: "OperaciÃ³n no permitida" });
+          res.status(409).json({ error: "Operación no permitida" });
         }
       } else {
         res.status(200).json(result.data);
@@ -448,7 +471,7 @@ export async function recomputeLogistics(req, res) {
     const validation = validateRecomputeQuery(req.query);
 
     if (!validation.ok) {
-      res.status(400).json({ error: "ParÃ¡metros invÃ¡lidos", details: validation.errors });
+      res.status(400).json({ error: "Parámetros inválidos", details: validation.errors });
     } else {
       const result = await maquinaService.recomputeLogisticsByEndedRentals(validation.data);
       res.status(200).json(result);
@@ -463,7 +486,7 @@ async function mover(req, res, destino) {
     const idParam = req.params.id;
 
     if (!validateId(idParam)) {
-      res.status(400).json({ error: "Id invÃ¡lido" });
+      res.status(400).json({ error: "Id inválido" });
     } else {
       const idMaquina = parseId(idParam);
 
@@ -471,11 +494,16 @@ async function mover(req, res, destino) {
 
       if (!result.ok) {
         if (result.reason === "NOT_FOUND") {
-          res.status(404).json({ error: "MÃ¡quina no encontrada" });
+          res.status(404).json({ error: "Máquina no encontrada" });
         } else if (result.reason === "RENTED") {
-          res.status(409).json({ error: "No se puede mover: la mÃ¡quina estÃ¡ ALQUILADA" });
+          res.status(409).json({ error: "No se puede mover: la máquina está ALQUILADA" });
+        } else if (result.reason === "MOVE_NOT_ALLOWED") {
+          res.status(409).json({
+            error:
+              "No se puede mover esta máquina a otra base desde su ubicación o estado actual",
+          });
         } else {
-          res.status(409).json({ error: "OperaciÃ³n no permitida" });
+          res.status(409).json({ error: "Operación no permitida" });
         }
       } else {
         res.status(200).json(result.data);
@@ -499,13 +527,13 @@ export async function getMaquinaById(req, res) {
     const idParam = req.params.id;
 
     if (!validateId(idParam)) {
-      res.status(400).json({ error: "Id invÃ¡lido" });
+      res.status(400).json({ error: "Id inválido" });
     } else {
       const idMaquina = parseId(idParam);
       const maquina = await maquinaService.getMaquinaById(idMaquina);
 
       if (maquina === null) {
-        res.status(404).json({ error: "MÃ¡quina no encontrada" });
+        res.status(404).json({ error: "Máquina no encontrada" });
       } else {
         res.status(200).json(maquina);
       }
@@ -520,7 +548,7 @@ export async function cambiarMaintenanceStatus(req, res, next) {
     const idMaquina = Number(req.params.id);
 
     if (!Number.isInteger(idMaquina) || idMaquina <= 0) {
-      const err = new Error("ID de mÃ¡quina invÃ¡lido");
+      const err = new Error("ID de máquina inválido");
       err.statusCode = 400;
       throw err;
     }
@@ -528,7 +556,7 @@ export async function cambiarMaintenanceStatus(req, res, next) {
     const ok = validateMaintenanceStatusPatch(req.body);
 
     if (!ok) {
-      const err = new Error("maintenance_status invÃ¡lido");
+      const err = new Error("maintenance_status inválido");
       err.statusCode = 400;
       throw err;
     }
@@ -547,7 +575,7 @@ export async function abrirIncidencia(req, res) {
     const idMaquina = Number(req.params.id);
 
     if (!Number.isInteger(idMaquina) || idMaquina <= 0) {
-      const err = new Error("ID de mÃ¡quina invÃ¡lido");
+      const err = new Error("ID de máquina inválido");
       err.statusCode = 400;
       throw err;
     }
@@ -555,7 +583,7 @@ export async function abrirIncidencia(req, res) {
     const ok = validateAbrirIncidenciaBody(req.body);
 
     if (!ok) {
-      const err = new Error("Body invÃ¡lido para abrir incidencia");
+      const err = new Error("Body inválido para abrir incidencia");
       err.statusCode = 400;
       throw err;
     }
@@ -594,12 +622,20 @@ export async function escalarAveriaGrave(req, res) {
     const idMaquina = Number(req.params.id);
 
     if (!Number.isInteger(idMaquina) || idMaquina <= 0) {
-      const err = new Error("ID de mÃ¡quina invÃ¡lido");
+      const err = new Error("ID de máquina inválido");
       err.statusCode = 400;
       throw err;
     }
 
-    const result = await maquinaService.escalarAveriaGraveIntoDB(idMaquina);
+    if (!validateEscalarAveriaGraveBody(req.body)) {
+      res.status(400).json({ error: "Body inválido para escalar avería grave" });
+      return;
+    }
+
+    const result = await maquinaService.escalarAveriaGraveIntoDB(
+      idMaquina,
+      req.body?.comentario ?? null
+    );
     res.status(200).json(result);
   } catch (e) {
     res.status(e.statusCode ?? 500).json({ error: e.message, meta: e.meta });

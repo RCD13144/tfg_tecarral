@@ -8,6 +8,7 @@ import {
   suggestNS,
   suggestMotor,
   suggestTipo,
+  suggestIdMaquina,
   crearMaquina,
   editarMaquinariaById,
   deleteMaquinariaById,
@@ -33,6 +34,7 @@ router.get("/suggest/subtipo", requireAuth, suggestSubtipo);
 router.get("/suggest/ns", requireAuth, suggestNS);
 router.get("/suggest/motor", requireAuth, suggestMotor);
 router.get("/suggest/tipo", requireAuth, suggestTipo);
+router.get("/suggest/id", requireAuth, suggestIdMaquina);
 
 router.post("/recompute-logistics", requireAuth, recomputeLogistics);
 

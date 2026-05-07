@@ -1,6 +1,72 @@
 import * as albaranService from "../services/albaranes.service.js";
 import { parseId, validateId } from "../schemas/common.schema.js";
-import { validateFirmarAlbaranBody } from "../schemas/albaranes.schema.js";
+import {
+  validateAlbaranEstadoQuery,
+  validateFirmarAlbaranBody,
+} from "../schemas/albaranes.schema.js";
+
+function getAuthUserId(req, res) {
+  const idUser = Number(req.user?.id_user);
+
+  if (!Number.isInteger(idUser) || idUser <= 0) {
+    res.status(401).json({ error: "No autenticado" });
+    return null;
+  }
+
+  return idUser;
+}
+
+export async function getAlbaranes(req, res) {
+  try {
+    const idUser = getAuthUserId(req, res);
+
+    if (idUser === null) {
+      return;
+    }
+
+    const estado = req.query?.estado;
+
+    if (!validateAlbaranEstadoQuery(estado)) {
+      res.status(400).json({ error: "Estado de albarán inválido" });
+      return;
+    }
+
+    const albaranes = await albaranService.getAlbaranes({
+      idUser,
+      estado: typeof estado === "string" ? estado.trim().toUpperCase() : null,
+    });
+
+    res.status(200).json(albaranes);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error", meta: e.meta });
+  }
+}
+
+export async function getAlbaranById(req, res) {
+  try {
+    const idAlbaran = parseId(req.params.id);
+
+    if (!validateId(idAlbaran)) {
+      res.status(400).json({ error: "Id de albarán inválido" });
+      return;
+    }
+
+    const idUser = getAuthUserId(req, res);
+
+    if (idUser === null) {
+      return;
+    }
+
+    const albaran = await albaranService.getAlbaranDetail({
+      idAlbaran,
+      idUser,
+    });
+
+    res.status(200).json(albaran);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error", meta: e.meta });
+  }
+}
 
 export async function firmarAlbaran(req, res) {
   try {
@@ -20,10 +86,9 @@ export async function firmarAlbaran(req, res) {
       return;
     }
 
-    const idUser = Number(req.user?.id_user);
+    const idUser = getAuthUserId(req, res);
 
-    if (!Number.isInteger(idUser) || idUser <= 0) {
-      res.status(401).json({ error: "No autenticado" });
+    if (idUser === null) {
       return;
     }
 

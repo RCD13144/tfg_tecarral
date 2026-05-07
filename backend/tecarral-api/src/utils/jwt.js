@@ -19,11 +19,11 @@ function getJwtAudience() {
 }
 
 function getJwtExpiresIn() {
-  return process.env.JWT_EXPIRES_IN || "15m";
+  return process.env.JWT_EXPIRES_IN || "8h";
 }
 
 function getFirstAccessJwtExpiresIn() {
-  return process.env.JWT_FIRST_ACCESS_EXPIRES_IN || "10m";
+  return process.env.JWT_FIRST_ACCESS_EXPIRES_IN || "8h";
 }
 
 export function signToken(payload) {

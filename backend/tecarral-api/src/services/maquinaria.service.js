@@ -8,6 +8,7 @@ import {
   suggestNS,
   suggestMotor,
   suggestTipo,
+  suggestIdMaquina,
   crearMaquina,
   editarMaquina,
   deleteMaquina,
@@ -97,6 +98,11 @@ export async function suggestMotorfromDB(text) {
 
 export async function suggestTipofromDB(text) {
   const maquina = await suggestTipo(text);
+  return maquina;
+}
+
+export async function suggestIdMaquinaFromDB(text) {
+  const maquina = await suggestIdMaquina(text);
   return maquina;
 }
 
@@ -259,6 +265,6 @@ export async function abrirIncidenciaIntoDB(
   return result;
 }
 
-export async function escalarAveriaGraveIntoDB(idMaquina) {
-  return escalarAveriaGraveTx({ idMaquina });
+export async function escalarAveriaGraveIntoDB(idMaquina, comentario) {
+  return escalarAveriaGraveTx({ idMaquina, comentario: comentario ?? null });
 }
