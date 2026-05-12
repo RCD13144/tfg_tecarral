@@ -2,6 +2,8 @@ import {
   getAllMaquinaria,
   getMaquinariaByIdFromDB,
   findMaquinaria,
+  enforceTransitLogisticsConsistency,
+  reconcileEndedRentalsTransit,
   suggestModelo,
   suggestMarca,
   suggestSubtipo,
@@ -12,15 +14,19 @@ import {
   crearMaquina,
   editarMaquina,
   deleteMaquina,
+  getMaquinaByIdForImageUpdate,
   marcarEntregadaAtomic,
   marcarRecibidaEnBaseTx,
   marcarTransitoPorAlquilerTerminadoTx,
   moverEntreBasesTx,
   getMaintenanceStatusById,
+  updateMachineImagePath,
   updateMaintenanceStatus,
   abrirIncidenciaTx,
   escalarAveriaGraveTx
 } from "../repositories/maquina.repository.js";
+import { getActiveRepairByMachineId } from "./reparacion.service.js";
+import { buildPublicImageUrl, storeMachineImage } from "../utils/machine-image-storage.js";
 
 import {
   validateUbicacionTipoDestino,
@@ -53,7 +59,21 @@ function isMaintenanceTransitionAllowed(current, next) {
   return okToAveriada || okToGrave || averiadaToGrave;
 }
 
+function withMachineImageUrl(machine) {
+  if (!machine) {
+    return machine;
+  }
+
+  return {
+    ...machine,
+    image_url: buildPublicImageUrl(machine.image_path),
+  };
+}
+
 export async function getMaquinaria(filters = {}) {
+  await reconcileEndedRentalsTransit();
+  await enforceTransitLogisticsConsistency();
+
   const hasFilters = Object.values(filters).some((value) => {
     if (Array.isArray(value)) {
       return value.length > 0;
@@ -64,11 +84,11 @@ export async function getMaquinaria(filters = {}) {
 
   if (hasFilters) {
     const maquinas = await findMaquinaria(filters);
-    return maquinas;
+    return maquinas.map(withMachineImageUrl);
   }
 
   const maquinas = await getAllMaquinaria();
-  return maquinas;
+  return maquinas.map(withMachineImageUrl);
 }
 
 export async function suggestModeloFromDB(text) {
@@ -106,40 +126,14 @@ export async function suggestIdMaquinaFromDB(text) {
   return maquina;
 }
 
-export async function crearMaquinaIntoDB(
-  subtipo,
-  marca,
-  motor,
-  modelo,
-  ns,
-  seguro,
-  num_poliza,
-  alquilada,
-  ubicacion,
-  observaciones,
-  tipo,
-  ubicacion_tipo
-) {
-  const maquina = await crearMaquina(
-    subtipo,
-    marca,
-    motor,
-    modelo,
-    ns,
-    seguro,
-    num_poliza,
-    alquilada,
-    ubicacion,
-    observaciones,
-    tipo,
-    ubicacion_tipo
-  );
-  return maquina;
+export async function crearMaquinaIntoDB(data) {
+  const maquina = await crearMaquina(data);
+  return withMachineImageUrl(maquina);
 }
 
 export async function editarMaquinariaByIdFromDB(id, patch) {
   const maquina = await editarMaquina(id, patch);
-  return maquina;
+  return withMachineImageUrl(maquina);
 }
 
 export async function deleteMaquinariaByIdFromDB(id) {
@@ -184,6 +178,9 @@ export async function moverEntreBases(idMaquina, ubicacionTipo) {
 }
 
 export async function getMaquinaById(idMaquina) {
+  await reconcileEndedRentalsTransit(idMaquina);
+  await enforceTransitLogisticsConsistency(idMaquina);
+
   const maquina = await getMaquinariaByIdFromDB(idMaquina);
 
   if (maquina === null) {
@@ -192,11 +189,36 @@ export async function getMaquinaById(idMaquina) {
 
   const hasUbicacion = isUbicacionTextUsable(maquina.ubicacion);
   const maps = hasUbicacion ? buildMapsLinks(maquina.ubicacion) : null;
+  const activeRepair = await getActiveRepairByMachineId(idMaquina);
 
   return {
     ...maquina,
+    image_url: buildPublicImageUrl(maquina.image_path),
     maps,
+    active_repair: activeRepair,
   };
+}
+
+export async function uploadMachineImage(idMaquina, { buffer, fileName, mimeType }) {
+  const maquina = await getMaquinaByIdForImageUpdate(idMaquina);
+
+  if (maquina === null) {
+    const err = new Error("Máquina no encontrada");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const imagePath = storeMachineImage({
+    idMaquina,
+    buffer,
+    fileName,
+    mimeType,
+    previousImagePath: maquina.image_path,
+  });
+
+  await updateMachineImagePath(idMaquina, imagePath);
+
+  return getMaquinaById(idMaquina);
 }
 
 export async function cambiarMaintenanceStatus(idMaquina, maintenanceStatus) {

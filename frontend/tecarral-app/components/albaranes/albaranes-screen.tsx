@@ -13,10 +13,12 @@ export function AlbaranesScreen({
   session,
   visible,
   onChangeParentScrollEnabled,
+  onOpenHelp,
 }: {
   session: AuthSession | null;
   visible: boolean;
   onChangeParentScrollEnabled: (enabled: boolean) => void;
+  onOpenHelp: () => void;
 }) {
   const albaranes = useAlbaranesScreen(session, visible);
 
@@ -92,6 +94,7 @@ export function AlbaranesScreen({
     <AlbaranListView
       feedback={albaranes.listFeedback}
       loading={albaranes.loadingList}
+      onOpenHelp={onOpenHelp}
       onOpenItem={(item) => void albaranes.openAlbaran(item.id_albaran, item.estado)}
       onToggleSigned={() => albaranes.setSignedExpanded(!albaranes.signedExpanded)}
       onToggleUnsigned={() => albaranes.setUnsignedExpanded(!albaranes.unsignedExpanded)}

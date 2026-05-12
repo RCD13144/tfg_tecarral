@@ -15,6 +15,7 @@ export function AlbaranListView({
   onToggleSigned,
   onToggleUnsigned,
   onOpenItem,
+  onOpenHelp,
 }: {
   signed: AlbaranListItem[];
   unsigned: AlbaranListItem[];
@@ -25,10 +26,11 @@ export function AlbaranListView({
   onToggleSigned: () => void;
   onToggleUnsigned: () => void;
   onOpenItem: (item: AlbaranListItem) => void;
+  onOpenHelp: () => void;
 }) {
   return (
     <View style={albaranesStyles.container}>
-      <ScreenHeader />
+      <ScreenHeader onHelpPress={onOpenHelp} />
 
       {feedback ? <Text style={albaranesStyles.feedbackText}>{feedback}</Text> : null}
       {loading ? <Text style={albaranesStyles.loadingText}>Cargando albaranes...</Text> : null}

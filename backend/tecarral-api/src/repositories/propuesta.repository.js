@@ -64,6 +64,21 @@ export async function crearPropuestaTx(body) {
       throw buildMaquinaUnavailableError(maquina);
     }
 
+    const acceptedRes = await client.query(
+      `
+      SELECT 1
+      FROM propuesta_alquiler
+      WHERE id_maquina = $1
+        AND estado = 'ACEPTADA'
+      LIMIT 1
+      `,
+      [body.id_maquina]
+    );
+
+    if (acceptedRes.rowCount > 0) {
+      throw buildMaquinaUnavailableError(maquina);
+    }
+
     const insertQuery = `
       INSERT INTO propuesta_alquiler(
         id_maquina,

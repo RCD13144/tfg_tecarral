@@ -1,6 +1,8 @@
 import { apiRequest } from '@/services/api';
 import type {
   MachineDetail,
+  MachineCreateFormData,
+  MachineEditFormData,
   MachineQueryParams,
   Maquina,
   SearchSuggestion,
@@ -46,6 +48,64 @@ export function getMaquinas(params: MachineQueryParams = {}) {
 export function getMachineDetail(idMaquina: number, token: string) {
   return apiRequest<MachineDetail>(`/maquinas/${idMaquina}`, {
     token,
+  });
+}
+
+export function updateMachineDetail(
+  idMaquina: number,
+  data: MachineEditFormData,
+  token: string
+) {
+  return apiRequest<MachineDetail>(`/maquinas/${idMaquina}`, {
+    method: 'PATCH',
+    token,
+    body: {
+      marca: data.marca.trim(),
+      modelo: data.modelo.trim(),
+      ubicacion: data.ubicacion.trim(),
+      tipo: data.tipo,
+      motor: data.motor,
+      ns: data.ns.trim(),
+      num_poliza: data.num_poliza.trim(),
+      observaciones: data.observaciones.trim(),
+      seguro: data.seguro === 'true',
+    },
+  });
+}
+
+export function createMachine(data: MachineCreateFormData, token: string) {
+  const isElevation = data.tipo === 'elevacion';
+
+  return apiRequest<MachineDetail>('/maquinas', {
+    method: 'POST',
+    token,
+    body: {
+      marca: data.marca.trim(),
+      modelo: data.modelo.trim(),
+      ns: data.ns.trim(),
+      tipo: data.tipo,
+      motor: data.motor || undefined,
+      seguro: data.seguro === '' ? undefined : data.seguro === 'true',
+      num_poliza: data.num_poliza.trim() || undefined,
+      observaciones: data.observaciones.trim() || undefined,
+      elev_ruedas: isElevation ? data.elev_ruedas.trim() || undefined : undefined,
+      elev_cap_carga: isElevation ? data.elev_cap_carga.trim() || undefined : undefined,
+      elev_replegado_mm: isElevation ? data.elev_replegado_mm.trim() || undefined : undefined,
+      elev_elevacion_libre:
+        !isElevation || data.elev_elevacion_libre === ''
+          ? undefined
+          : data.elev_elevacion_libre === 'true',
+      elev_elevacion: isElevation ? data.elev_elevacion.trim() || undefined : undefined,
+      elev_desplazamiento: isElevation ? data.elev_desplazamiento.trim() || undefined : undefined,
+      elev_posicion: isElevation ? data.elev_posicion.trim() || undefined : undefined,
+      elev_antihuella: isElevation ? data.elev_antihuella.trim() || undefined : undefined,
+      elev_matricula: isElevation ? data.elev_matricula.trim() || undefined : undefined,
+      elev_largo: isElevation ? data.elev_largo.trim() || undefined : undefined,
+      elev_alto: isElevation ? data.elev_alto.trim() || undefined : undefined,
+      elev_ancho: isElevation ? data.elev_ancho.trim() || undefined : undefined,
+      elev_peso_kg: isElevation ? data.elev_peso_kg.trim() || undefined : undefined,
+      elev_horquillas: isElevation ? data.elev_horquillas.trim() || undefined : undefined,
+    },
   });
 }
 

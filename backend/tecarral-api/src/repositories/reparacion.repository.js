@@ -289,10 +289,11 @@ export async function marcarReparacionTerminadaTx(
           UPDATE maquina
           SET
             maintenance_status = 'OK',
-            logistics_status = NULL,
-            ubicacion_tipo = 'CLIENTE',
+            logistics_status = 'EN_CAMINO',
+            ubicacion_tipo = 'TRANSITO',
             ubicacion_ref_id = $2,
-            ubicacion = COALESCE($3, ubicacion)
+            ubicacion = COALESCE($3, ubicacion),
+            transit_reason = 'REPARACION_TERMINADA'
           WHERE id_maquina = $1
           `,
           [reparacion.id_maquina, propuestaId, ubicacionCliente]
@@ -303,8 +304,9 @@ export async function marcarReparacionTerminadaTx(
           UPDATE maquina
           SET
             maintenance_status = 'OK',
-            logistics_status = NULL,
-            ubicacion_tipo = 'CLIENTE'
+            logistics_status = 'EN_CAMINO',
+            ubicacion_tipo = 'TRANSITO',
+            transit_reason = 'REPARACION_TERMINADA'
           WHERE id_maquina = $1
           `,
           [reparacion.id_maquina]
@@ -336,4 +338,91 @@ export async function marcarReparacionTerminadaTx(
   } finally {
     client.release();
   }
+}
+
+export async function findActiveRepairByMachineId(idMaquina) {
+  const result = await pool.query(
+    `
+    SELECT
+      r.id_reparacion,
+      r.id_maquina,
+      r.id_albaran,
+      r.id_user_asignado,
+      r.comentario,
+      r.solucion_aplicada,
+      r.estado,
+      a.estado AS albaran_estado,
+      a.propuesta_alquiler_id,
+      pr.id AS presupuesto_reparacion_id,
+      pr.estado AS presupuesto_estado
+    FROM reparacion r
+    LEFT JOIN albaran a
+      ON a.id_albaran = r.id_albaran
+    LEFT JOIN presupuesto_reparacion pr
+      ON pr.reparacion_id = r.id_reparacion
+    WHERE r.id_maquina = $1
+      AND r.estado NOT IN ('TERMINADA', 'CANCELADA')
+    ORDER BY r.id_reparacion DESC
+    LIMIT 1
+    `,
+    [idMaquina]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function findActiveReparaciones({ userId = null, isAdmin = false }) {
+  const values = [];
+  const conditions = [`r.estado NOT IN ('TERMINADA', 'CANCELADA')`];
+
+  if (!isAdmin) {
+    values.push(userId);
+    conditions.push(`r.id_user_asignado = $${values.length}`);
+  }
+
+  const result = await pool.query(
+    `
+    SELECT
+      r.id_reparacion,
+      r.id_maquina,
+      r.id_albaran,
+      r.id_user_asignado,
+      r.comentario,
+      r.solucion_aplicada,
+      r.estado,
+      r.created_at,
+      a.estado AS albaran_estado,
+      a.propuesta_alquiler_id,
+      a.cliente,
+      a.direccion,
+      a.poblacion,
+      a.marca,
+      a.modelo,
+      a.ns,
+      m.tipo_maquina,
+      m.maintenance_status,
+      m.availability_status,
+      m.ubicacion_tipo,
+      u.nombre AS assigned_user_nombre,
+      u.email AS assigned_user_email,
+      pr.id AS presupuesto_reparacion_id,
+      pr.estado AS presupuesto_estado,
+      pr.importe_total,
+      pr.expira_at
+    FROM reparacion r
+    LEFT JOIN albaran a
+      ON a.id_albaran = r.id_albaran
+    LEFT JOIN maquina m
+      ON m.id_maquina = r.id_maquina
+    LEFT JOIN users u
+      ON u.id_user = r.id_user_asignado
+    LEFT JOIN presupuesto_reparacion pr
+      ON pr.reparacion_id = r.id_reparacion
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY r.created_at DESC, r.id_reparacion DESC
+    `,
+    values
+  );
+
+  return result.rows;
 }

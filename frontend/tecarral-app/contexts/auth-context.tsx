@@ -21,6 +21,7 @@ type AuthContextValue = {
   session: AuthSession | null;
   firstAccess: FirstAccessState | null;
   completeSignIn: (session: AuthSession) => Promise<void>;
+  updateSessionUser: (user: AuthSession['user']) => Promise<void>;
   startFirstAccess: (state: FirstAccessState) => void;
   clearFirstAccess: () => void;
   signOut: () => Promise<void>;
@@ -73,6 +74,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await setStoredItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
         setFirstAccess(null);
         setSession(nextSession);
+      },
+      async updateSessionUser(nextUser) {
+        setSession((current) => {
+          if (!current) {
+            return current;
+          }
+
+          const nextSession = {
+            ...current,
+            user: nextUser,
+          };
+
+          void setStoredItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+          return nextSession;
+        });
       },
       startFirstAccess(state) {
         void removeStoredItem(SESSION_STORAGE_KEY);

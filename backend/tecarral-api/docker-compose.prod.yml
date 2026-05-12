@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: tecarral_postgres
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - tecarral_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: tecarral_api
+    env_file:
+      - .env.production
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+      - ../../frontend/tecarral-app/assets/machines:/seed-assets/machines:ro
+      - ../../frontend/tecarral-app/constants/machine-images.ts:/seed-assets/machine-images.ts:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  tecarral_pgdata:

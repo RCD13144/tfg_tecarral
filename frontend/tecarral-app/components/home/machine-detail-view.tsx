@@ -8,7 +8,7 @@ import { SelectorField } from '@/components/home/selector-field';
 import { COMMON_DETAIL_FIELDS, ELEVATION_DETAIL_FIELDS } from '@/constants/home';
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
-import type { MachineDetail, MachineProposalSummary } from '@/types/maquina';
+import type { MachineDetail, MachineEditFormData, MachineProposalSummary } from '@/types/maquina';
 import {
   formatLocationLabel,
   formatMachineName,
@@ -47,7 +47,32 @@ export function MachineDetailView({
   onToggleProposals,
   proposals,
   canCreateProposal,
+  canOpenProposalForm,
+  proposalButtonDisabledReason,
   onOpenProposalForm,
+  machineEditForm,
+  machineEditFeedback,
+  machineEditSubmitting,
+  machineEditMode,
+  machineEditTipoOpen,
+  machineEditMotorOpen,
+  machineEditSeguroOpen,
+  machineTipoOptions,
+  machineMotorOptions,
+  machineSeguroOptions,
+  onChangeMachineEditField,
+  onOpenMachineEdit,
+  onCancelMachineEdit,
+  onSaveMachineEdit,
+  onToggleMachineEditTipo,
+  onToggleMachineEditMotor,
+  onToggleMachineEditSeguro,
+  onPickMachineEditImageFromLibrary,
+  onTakeMachineEditPhoto,
+  showRepairBudgetButton,
+  canCreateRepairBudget,
+  repairBudgetDisabledReason,
+  onOpenRepairBudgetForm,
   onOpenNavigation,
   canSubmitIncidence,
   incidenceEscalationMode,
@@ -82,7 +107,35 @@ export function MachineDetailView({
   onToggleProposals: () => void;
   proposals: MachineProposalSummary[];
   canCreateProposal: boolean;
+  canOpenProposalForm: boolean;
+  proposalButtonDisabledReason: string | null;
   onOpenProposalForm: () => void;
+  machineEditForm: MachineEditFormData;
+  machineEditFeedback: string | null;
+  machineEditSubmitting: boolean;
+  machineEditMode: boolean;
+  machineEditTipoOpen: boolean;
+  machineEditMotorOpen: boolean;
+  machineEditSeguroOpen: boolean;
+  machineTipoOptions: readonly { label: string; value: string }[];
+  machineMotorOptions: readonly { label: string; value: string }[];
+  machineSeguroOptions: readonly { label: string; value: string }[];
+  onChangeMachineEditField: <K extends keyof MachineEditFormData>(
+    key: K,
+    value: MachineEditFormData[K]
+  ) => void;
+  onOpenMachineEdit: () => void;
+  onCancelMachineEdit: () => void;
+  onSaveMachineEdit: () => void;
+  onToggleMachineEditTipo: () => void;
+  onToggleMachineEditMotor: () => void;
+  onToggleMachineEditSeguro: () => void;
+  onPickMachineEditImageFromLibrary: () => void;
+  onTakeMachineEditPhoto: () => void;
+  showRepairBudgetButton: boolean;
+  canCreateRepairBudget: boolean;
+  repairBudgetDisabledReason: string | null;
+  onOpenRepairBudgetForm: () => void;
   onOpenNavigation: () => void;
   canSubmitIncidence: boolean;
   incidenceEscalationMode: boolean;
@@ -148,6 +201,127 @@ export function MachineDetailView({
               : '-'}
         </Text>
       </Text>
+
+      {machineEditMode ? (
+        <View style={homeStyles.sectionBlock}>
+          <Text style={homeStyles.sectionTitle}>Editar maquinaria</Text>
+          {machineEditFeedback ? <Text style={homeStyles.feedbackText}>{machineEditFeedback}</Text> : null}
+
+          <Text style={homeStyles.formFieldLabel}>Marca</Text>
+          <TextInput
+            onChangeText={(value) => onChangeMachineEditField('marca', value)}
+            placeholder="Marca"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={machineEditForm.marca}
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Modelo</Text>
+          <TextInput
+            onChangeText={(value) => onChangeMachineEditField('modelo', value)}
+            placeholder="Modelo"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={machineEditForm.modelo}
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Imagen</Text>
+          <View style={homeStyles.inlineActionRow}>
+            <Pressable onPress={onTakeMachineEditPhoto} style={homeStyles.inlineActionButton}>
+              <Ionicons color={AppColors.primary} name="camera-outline" size={18} />
+              <Text style={homeStyles.inlineActionButtonText}>Hacer foto</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onPickMachineEditImageFromLibrary}
+              style={homeStyles.inlineActionButton}>
+              <Ionicons color={AppColors.primary} name="images-outline" size={18} />
+              <Text style={homeStyles.inlineActionButtonText}>Adjuntar</Text>
+            </Pressable>
+          </View>
+
+          {machineEditForm.image_uri ? (
+            <View style={homeStyles.machineImagePreviewCard}>
+              <ExpoImage
+                contentFit="cover"
+                source={{ uri: machineEditForm.image_uri }}
+                style={homeStyles.machineImagePreview}
+              />
+            </View>
+          ) : null}
+
+          <SelectorField
+            isOpen={machineEditTipoOpen}
+            label="Tipo"
+            labelStyle={homeStyles.formFieldLabel}
+            onSelect={(value) => onChangeMachineEditField('tipo', value as MachineEditFormData['tipo'])}
+            onToggleOpen={onToggleMachineEditTipo}
+            options={[...machineTipoOptions]}
+            valueLabel={
+              machineTipoOptions.find((option) => option.value === machineEditForm.tipo)?.label ??
+              machineEditForm.tipo
+            }
+          />
+
+          <SelectorField
+            isOpen={machineEditMotorOpen}
+            label="Motor"
+            labelStyle={homeStyles.formFieldLabel}
+            onSelect={(value) =>
+              onChangeMachineEditField('motor', value as MachineEditFormData['motor'])
+            }
+            onToggleOpen={onToggleMachineEditMotor}
+            options={[...machineMotorOptions]}
+            valueLabel={
+              machineMotorOptions.find((option) => option.value === machineEditForm.motor)?.label ??
+              machineEditForm.motor
+            }
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Numero de serie</Text>
+          <TextInput
+            onChangeText={(value) => onChangeMachineEditField('ns', value)}
+            placeholder="Numero de serie"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={machineEditForm.ns}
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Numero de poliza</Text>
+          <TextInput
+            onChangeText={(value) => onChangeMachineEditField('num_poliza', value)}
+            placeholder="Numero de poliza"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={machineEditForm.num_poliza}
+          />
+
+          <SelectorField
+            isOpen={machineEditSeguroOpen}
+            label="Seguro"
+            labelStyle={homeStyles.formFieldLabel}
+            onSelect={(value) =>
+              onChangeMachineEditField('seguro', value as MachineEditFormData['seguro'])
+            }
+            onToggleOpen={onToggleMachineEditSeguro}
+            options={[...machineSeguroOptions]}
+            valueLabel={
+              machineSeguroOptions.find((option) => option.value === machineEditForm.seguro)?.label ??
+              machineEditForm.seguro
+            }
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Observaciones</Text>
+          <TextInput
+            multiline
+            onChangeText={(value) => onChangeMachineEditField('observaciones', value)}
+            placeholder="Observaciones"
+            placeholderTextColor={AppColors.primary50}
+            style={[homeStyles.formInput, homeStyles.incidenceInput]}
+            value={machineEditForm.observaciones}
+          />
+        </View>
+      ) : null}
 
       <View style={homeStyles.detailActionsRow}>
         <View style={homeStyles.detailActionsColumn}>
@@ -285,9 +459,52 @@ export function MachineDetailView({
       </View>
 
       {canCreateProposal ? (
-        <Pressable onPress={onOpenProposalForm} style={homeStyles.primaryActionButton}>
+        <Pressable
+          disabled={!canOpenProposalForm}
+          onPress={onOpenProposalForm}
+          style={[homeStyles.primaryActionButton, !canOpenProposalForm && homeStyles.actionButtonDisabled]}>
           <Text style={homeStyles.primaryActionButtonText}>Crear propuesta de alquiler</Text>
         </Pressable>
+      ) : null}
+
+      {canCreateProposal && proposalButtonDisabledReason ? (
+        <Text style={homeStyles.sectionHint}>{proposalButtonDisabledReason}</Text>
+      ) : null}
+
+      <Pressable
+        disabled={machineEditSubmitting}
+        onPress={machineEditMode ? onSaveMachineEdit : onOpenMachineEdit}
+        style={[homeStyles.primaryActionButton, machineEditSubmitting && homeStyles.actionButtonDisabled]}>
+        <Text style={homeStyles.primaryActionButtonText}>
+          {machineEditSubmitting
+            ? 'Guardando...'
+            : machineEditMode
+              ? 'Guardar cambios'
+              : 'Editar maquinaria'}
+        </Text>
+      </Pressable>
+
+      {machineEditMode ? (
+        <Pressable onPress={onCancelMachineEdit} style={homeStyles.secondaryActionButtonBlock}>
+          <Text style={homeStyles.secondaryActionButtonText}>Cancelar edicion</Text>
+        </Pressable>
+      ) : null}
+
+      {showRepairBudgetButton ? (
+        <View>
+          <Pressable
+            disabled={!canCreateRepairBudget}
+            onPress={onOpenRepairBudgetForm}
+            style={[
+              homeStyles.primaryActionButton,
+              !canCreateRepairBudget && homeStyles.actionButtonDisabled,
+            ]}>
+            <Text style={homeStyles.primaryActionButtonText}>Crear presupuesto de reparación</Text>
+          </Pressable>
+          {repairBudgetDisabledReason ? (
+            <Text style={homeStyles.sectionHint}>{repairBudgetDisabledReason}</Text>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );

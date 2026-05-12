@@ -1,5 +1,23 @@
-import { asignarAveriaTx, marcarReparacionTerminadaTx } from "../repositories/reparacion.repository.js";
+import {
+  asignarAveriaTx,
+  marcarReparacionTerminadaTx,
+  findActiveReparaciones,
+  findActiveRepairByMachineId,
+} from "../repositories/reparacion.repository.js";
 import { parseId, validateId } from "../schemas/common.schema.js";
+
+export async function getReparacionesActivas(idUser, role) {
+  const isAdmin = String(role ?? "").trim().toLowerCase() === "admin";
+
+  return findActiveReparaciones({
+    userId: idUser,
+    isAdmin,
+  });
+}
+
+export async function getActiveRepairByMachineId(idMaquina) {
+  return findActiveRepairByMachineId(idMaquina);
+}
 
 export async function asignarAveriaIntoDB(idReparacion, idUser) {
   const repId = parseId(idReparacion);

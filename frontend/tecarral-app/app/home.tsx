@@ -1,16 +1,26 @@
 import { Redirect } from 'expo-router';
-import { Animated, ScrollView, useWindowDimensions, View } from 'react-native';
+import {
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 
 import { AlbaranesScreen } from '@/components/albaranes/albaranes-screen';
 import { HomeBottomTabBar } from '@/components/home/home-bottom-tab-bar';
+import { CreateMachineFormView } from '@/components/home/create-machine-form-view';
 import { MachineDetailView } from '@/components/home/machine-detail-view';
 import { MachineListView } from '@/components/home/machine-list-view';
 import { NavigationAppModal } from '@/components/home/navigation-app-modal';
-import { PlaceholderTab } from '@/components/home/placeholder-tab';
 import { ProposalFormView } from '@/components/home/proposal-form-view';
+import { RepairBudgetFormView } from '@/components/home/repair-budget-form-view';
+import { ReparacionesScreen } from '@/components/reparaciones/reparaciones-screen';
+import { HelpSidePanel } from '@/components/shared/help-side-panel';
+import { UserScreen } from '@/components/user/user-screen';
 import {
-  LOGIN_ROUTE,
   TAB_BAR_HORIZONTAL_PADDING,
   TAB_BAR_INNER_PADDING,
   TAB_KEYS,
@@ -25,8 +35,10 @@ export default function HomeScreen() {
   const indicatorTranslateX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const home = useHomeScreen(session);
+  const isAdmin = String(session?.user.role ?? '').trim().toLowerCase() === 'admin';
 
   const tabBarWidth = Math.max(0, width - TAB_BAR_HORIZONTAL_PADDING * 2);
   const tabSlotWidth = (tabBarWidth - TAB_BAR_INNER_PADDING * 2) / TAB_KEYS.length;
@@ -51,7 +63,11 @@ export default function HomeScreen() {
       return;
     }
 
-    if (home.homeSubview === 'proposalForm' || home.homeSubview === 'list') {
+    if (
+      home.homeSubview === 'proposalForm' ||
+      home.homeSubview === 'repairBudgetForm' ||
+      home.homeSubview === 'list'
+    ) {
       scrollViewRef.current?.scrollTo({ y: 0, animated: false });
     }
   }, [home.activeTab, home.homeSubview, home.homeScrollResetKey]);
@@ -65,11 +81,87 @@ export default function HomeScreen() {
   }, [home.activeTab, home.homeSubview, home.incidencePanelVisible]);
 
   if (!isHydrating && !session) {
-    return <Redirect href={LOGIN_ROUTE} />;
+    return <Redirect href={'/' as never} />;
   }
 
   const scrollBottomPadding =
     home.filterPanelOpen && home.homeSubview === 'list' ? 300 : 126;
+
+  function getHelpContent() {
+    if (home.activeTab === 'home') {
+      return {
+        title: 'Ayuda · Maquinaria',
+        subtitle: isAdmin ? 'Vista para administrador' : 'Vista para tecnico',
+        items: isAdmin
+          ? [
+              'Consulta toda la maquinaria, aplica filtros y abre el detalle de cada máquina.',
+              'Desde esta pestaña puedes crear máquinas nuevas y preparar propuestas de alquiler cuando corresponda.',
+              'En el detalle puedes editar datos de maquinaria, confirmar ubicaciones y cambiar estados de mantenimiento.',
+              'Si una máquina queda en tránsito, las opciones de ubicación se ajustan automáticamente al contexto real del flujo.',
+            ]
+          : [
+              'Consulta toda la maquinaria disponible y abre el detalle de cada máquina.',
+              'Desde el detalle puedes revisar estados, confirmar ubicaciones permitidas y registrar incidencias.',
+              'Las opciones de ubicación cambian según si la máquina viene de reparación o de un alquiler finalizado.',
+              'La información que ves aquí siempre debe reflejar lo persistido en backend.',
+            ],
+      };
+    }
+
+    if (home.activeTab === 'albaran') {
+      return {
+        title: 'Ayuda · Albaranes',
+        subtitle: isAdmin ? 'Vista para administrador' : 'Vista para tecnico',
+        items: isAdmin
+          ? [
+              'Revisa albaranes firmados y pendientes para hacer seguimiento de entregas e incidencias.',
+              'Puedes abrir cualquier albarán para comprobar su detalle y su estado de firma.',
+              'Esta pestaña sirve para supervisar el circuito documental asociado a alquileres y reparaciones.',
+            ]
+          : [
+              'Consulta los albaranes pendientes y los ya firmados.',
+              'Desde un albarán pendiente puedes avanzar por el flujo de firma técnica y firma del cliente.',
+              'Usa esta pestaña para dejar cerrada la documentación de cada intervención o entrega.',
+            ],
+      };
+    }
+
+    if (home.activeTab === 'reparacion') {
+      return {
+        title: 'Ayuda · Reparaciones',
+        subtitle: isAdmin ? 'Vista para administrador' : 'Vista para tecnico',
+        items: isAdmin
+          ? [
+              'Consulta todas las reparaciones activas y detecta las averías graves pendientes.',
+              'Puedes asignar reparaciones graves al técnico correspondiente y seguir su evolución.',
+              'También puedes cerrar reparaciones cuando el flujo y los requisitos del backend lo permitan.',
+            ]
+          : [
+              'Consulta únicamente las reparaciones activas que tienes asignadas.',
+              'Desde aquí puedes revisar el contexto de la avería y registrar la solución aplicada.',
+              'Cuando una reparación se complete, esta pestaña te permite cerrarla siguiendo el flujo permitido.',
+            ],
+      };
+    }
+
+    return {
+      title: 'Ayuda · Usuario',
+      subtitle: isAdmin ? 'Vista para administrador' : 'Vista para tecnico',
+      items: isAdmin
+        ? [
+            'Gestiona tu perfil, cambia tu contraseña y cierra sesión desde esta pestaña.',
+            'Además puedes registrar nuevos usuarios y desactivar usuarios activos cuando haga falta.',
+            'La parte administrativa de usuarios solo aparece para cuentas con rol admin.',
+          ]
+        : [
+            'Gestiona tu perfil personal, cambia tu contraseña y cierra sesión.',
+            'Aquí solo se muestran acciones relacionadas con tu propia cuenta.',
+            'Los datos sensibles como rol, nombre y email se muestran en solo lectura.',
+          ],
+    };
+  }
+
+  const helpContent = getHelpContent();
 
   function renderHomeContent() {
     if (home.homeSubview === 'detail') {
@@ -77,36 +169,67 @@ export default function HomeScreen() {
         <MachineDetailView
           acceptedProposal={home.acceptedProposal}
           canCreateProposal={home.canCreateProposal}
+          canOpenProposalForm={home.canOpenProposalForm}
+          canCreateRepairBudget={home.canCreateRepairBudget}
           canMarkDelivered={home.canMarkDelivered}
           canSubmitIncidence={home.canSubmitIncidence}
           detailFeedback={home.detailFeedback}
           detailLoading={home.detailLoading}
-          locationActionLoading={home.locationActionLoading}
-          locationOptions={home.locationOptions}
-          locationPickerOpen={home.locationPickerOpen}
-          machineImageSource={home.machineImageSource}
-          maintenanceOptions={home.maintenanceOptions}
-          onBack={home.resetToListView}
-          onConfirmLocation={() => void home.handleConfirmLocation()}
-          onOpenNavigation={() => void home.openNavigationOptions()}
-          onOpenProposalForm={home.openProposalForm}
-          onSelectLocation={home.handleLocationChange}
-          onSelectMaintenance={(value) => void home.handleMaintenanceChange(value)}
-          onChangeIncidenceComment={home.setIncidenceComment}
-          onCancelIncidenceDraft={home.handleCancelIncidenceDraft}
-          onSubmitIncidence={() => void home.handleOpenIncidence()}
-          onToggleLocationPicker={home.handleToggleLocationPicker}
-          onToggleProposals={() => home.setProposalsExpanded(!home.proposalsExpanded)}
-          onToggleStatusPicker={home.handleToggleStatusPicker}
           detailSuccessFeedback={home.detailSuccessFeedback}
-          proposals={home.selectedMachineProposals}
-          proposalsExpanded={home.proposalsExpanded}
           incidenceComment={home.incidenceComment}
           incidenceEscalationMode={home.incidenceEscalationMode}
           incidencePanelVisible={home.incidencePanelVisible}
-          selectedMaintenanceStatus={home.selectedMaintenanceStatus}
+          locationActionLoading={home.locationActionLoading}
+          locationOptions={home.locationOptions}
+          locationPickerOpen={home.locationPickerOpen}
+          machineEditFeedback={home.machineEditFeedback}
+          machineEditForm={home.machineEditForm}
+          machineEditMode={home.machineEditMode}
+          machineEditMotorOpen={home.machineEditMotorOpen}
+          machineEditSeguroOpen={home.machineEditSeguroOpen}
+          machineEditSubmitting={home.machineEditSubmitting}
+          machineEditTipoOpen={home.machineEditTipoOpen}
+          machineImageSource={home.machineImageSource}
+          machineMotorOptions={home.machineMotorOptions}
+          machineSeguroOptions={home.machineSeguroOptions}
+          machineTipoOptions={home.machineTipoOptions}
+          maintenanceOptions={home.maintenanceOptions}
+          onBack={home.resetToListView}
+          onCancelIncidenceDraft={home.handleCancelIncidenceDraft}
+          onChangeIncidenceComment={home.setIncidenceComment}
+          onChangeMachineEditField={home.updateMachineEditForm}
+          onConfirmLocation={() => void home.handleConfirmLocation()}
+          onCancelMachineEdit={home.handleCancelMachineEdit}
+          onOpenMachineEdit={home.handleOpenMachineEdit}
+          onOpenNavigation={() => void home.openNavigationOptions()}
+          onOpenProposalForm={home.openProposalForm}
+          onOpenRepairBudgetForm={home.openRepairBudgetForm}
+          onPickMachineEditImageFromLibrary={() => void home.pickMachineImage('library', 'edit')}
+          onSaveMachineEdit={() => void home.handleSaveMachineEdit()}
+          onSelectLocation={home.handleLocationChange}
+          onSelectMaintenance={(value) => void home.handleMaintenanceChange(value)}
+          onSubmitIncidence={() => void home.handleOpenIncidence()}
+          onTakeMachineEditPhoto={() => void home.pickMachineImage('camera', 'edit')}
+          onToggleLocationPicker={home.handleToggleLocationPicker}
+          onToggleMachineEditMotor={() =>
+            home.setMachineEditMotorOpen((current: boolean) => !current)
+          }
+          onToggleMachineEditSeguro={() =>
+            home.setMachineEditSeguroOpen((current: boolean) => !current)
+          }
+          onToggleMachineEditTipo={() =>
+            home.setMachineEditTipoOpen((current: boolean) => !current)
+          }
+          onToggleProposals={() => home.setProposalsExpanded(!home.proposalsExpanded)}
+          onToggleStatusPicker={home.handleToggleStatusPicker}
+          proposalButtonDisabledReason={home.proposalButtonDisabledReason}
+          proposals={home.selectedMachineProposals}
+          proposalsExpanded={home.proposalsExpanded}
+          repairBudgetDisabledReason={home.repairBudgetDisabledReason}
           selectedMachineDetail={home.selectedMachineDetail}
+          selectedMaintenanceStatus={home.selectedMaintenanceStatus}
           selectedTargetLocation={home.selectedTargetLocation}
+          showRepairBudgetButton={home.showRepairBudgetButton}
           statusActionLoading={home.statusActionLoading}
           statusPickerOpen={home.statusPickerOpen}
         />
@@ -127,6 +250,50 @@ export default function HomeScreen() {
       );
     }
 
+    if (home.homeSubview === 'repairBudgetForm') {
+      return (
+        <RepairBudgetFormView
+          onBack={() => home.setHomeSubview('detail')}
+          onChangeField={home.updateRepairBudgetForm}
+          onSubmit={() => void home.handleCreateRepairBudget()}
+          proposalSummary={home.acceptedProposal}
+          repairBudgetFeedback={home.repairBudgetFeedback}
+          repairBudgetForm={home.repairBudgetForm}
+          repairBudgetSubmitting={home.repairBudgetSubmitting}
+          selectedMachineDetail={home.selectedMachineDetail}
+        />
+      );
+    }
+
+    if (home.homeSubview === 'createMachineForm') {
+      return (
+        <CreateMachineFormView
+          elevationLibreOpen={home.machineCreateElevationLibreOpen}
+          elevationLibreOptions={home.machineBooleanOptions}
+          feedback={home.machineCreateFeedback}
+          form={home.machineCreateForm}
+          motorOpen={home.machineCreateMotorOpen}
+          motorOptions={home.machineMotorOptions}
+          onBack={home.resetToListView}
+          onChangeField={home.updateMachineCreateForm}
+          onPickImageFromLibrary={() => void home.pickMachineImage('library')}
+          onSubmit={() => void home.handleCreateMachine()}
+          onTakePhoto={() => void home.pickMachineImage('camera')}
+          onToggleElevationLibre={() =>
+            home.setMachineCreateElevationLibreOpen((current: boolean) => !current)
+          }
+          onToggleMotor={() => home.setMachineCreateMotorOpen((current: boolean) => !current)}
+          onToggleSeguro={() => home.setMachineCreateSeguroOpen((current: boolean) => !current)}
+          onToggleTipo={() => home.setMachineCreateTipoOpen((current: boolean) => !current)}
+          seguroOpen={home.machineCreateSeguroOpen}
+          seguroOptions={home.machineSeguroOptions}
+          submitting={home.machineCreateSubmitting}
+          tipoOpen={home.machineCreateTipoOpen}
+          tipoOptions={home.machineTipoOptions}
+        />
+      );
+    }
+
     return (
       <MachineListView
         activeFilterCount={home.activeFilterCount}
@@ -137,6 +304,9 @@ export default function HomeScreen() {
         loadingMachines={home.loadingMachines}
         loadingSuggestions={home.loadingSuggestions}
         machines={home.visibleMachines}
+        canCreateMachine={home.canCreateMachine}
+        onOpenHelp={() => setHelpOpen(true)}
+        onOpenCreateMachine={home.openCreateMachineForm}
         onOpenMachine={(idMaquina) => void home.openMachineDetail(idMaquina)}
         onQueryChange={home.setQuery}
         onSelectSuggestion={home.handleSelectSuggestion}
@@ -157,6 +327,7 @@ export default function HomeScreen() {
       return (
         <AlbaranesScreen
           onChangeParentScrollEnabled={setParentScrollEnabled}
+          onOpenHelp={() => setHelpOpen(true)}
           session={session}
           visible={home.activeTab === 'albaran'}
         />
@@ -165,30 +336,39 @@ export default function HomeScreen() {
 
     if (home.activeTab === 'reparacion') {
       return (
-        <PlaceholderTab
-          subtitle="Aqui se dejará preparada la base para el contenido de reparaciones."
-          title="Ventana reparacion"
+        <ReparacionesScreen
+          onOpenHelp={() => setHelpOpen(true)}
+          session={session}
+          visible={home.activeTab === 'reparacion'}
         />
       );
     }
 
     return (
-      <PlaceholderTab
-        subtitle="Aqui se dejará preparada la base para la informacion del usuario."
-        title="Ventana user"
+      <UserScreen
+        onOpenHelp={() => setHelpOpen(true)}
+        session={session}
+        visible={home.activeTab === 'user'}
       />
     );
   }
 
   return (
     <View style={homeStyles.container}>
-      <ScrollView
-        ref={scrollViewRef}
-        contentContainerStyle={[homeStyles.scrollContent, { paddingBottom: scrollBottomPadding }]}
-        scrollEnabled={parentScrollEnabled}
-        showsVerticalScrollIndicator={false}>
-        {renderTabContent()}
-      </ScrollView>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        style={homeStyles.keyboardContainer}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[homeStyles.scrollContent, { paddingBottom: scrollBottomPadding }]}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={parentScrollEnabled}
+          showsVerticalScrollIndicator={false}>
+          {renderTabContent()}
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <HomeBottomTabBar
         activeTab={home.activeTab}
@@ -204,6 +384,14 @@ export default function HomeScreen() {
         onClose={() => home.setNavigationModalOpen(false)}
         onOpen={(url) => void home.handleOpenNavigation(url)}
         visible={home.navigationModalOpen}
+      />
+
+      <HelpSidePanel
+        items={helpContent.items}
+        onClose={() => setHelpOpen(false)}
+        subtitle={helpContent.subtitle}
+        title={helpContent.title}
+        visible={helpOpen}
       />
     </View>
   );

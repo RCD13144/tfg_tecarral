@@ -5,6 +5,7 @@ export interface AuthUser {
   nombre: string;
   telefono: string | null;
   must_change_password?: boolean;
+  is_active?: boolean;
 }
 
 export interface AuthSession {

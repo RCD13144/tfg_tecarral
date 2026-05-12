@@ -14,18 +14,21 @@ export async function login(email, plainPassword) {
   const user = await findUserByEmail(email);
 
   if (!user) {
-    const error = new Error("Credenciales inválidas");
+    const error = new Error("Credenciales invalidas");
     error.statusCode = 401;
     throw error;
   }
 
-  const passwordIsValid = await verifyPassword(
-    plainPassword,
-    user.password_hash
-  );
+  if (user.is_active === false) {
+    const error = new Error("Usuario dado de baja");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const passwordIsValid = await verifyPassword(plainPassword, user.password_hash);
 
   if (!passwordIsValid) {
-    const error = new Error("Credenciales inválidas");
+    const error = new Error("Credenciales invalidas");
     error.statusCode = 401;
     throw error;
   }
@@ -43,6 +46,7 @@ export async function login(email, plainPassword) {
         role: user.role,
         nombre: user.nombre,
         telefono: user.telefono,
+        is_active: user.is_active,
       },
     };
   }
@@ -62,6 +66,7 @@ export async function login(email, plainPassword) {
       nombre: user.nombre,
       telefono: user.telefono,
       must_change_password: user.must_change_password,
+      is_active: user.is_active,
     },
   };
 }
@@ -72,15 +77,15 @@ export async function changeTemporaryPassword(firstAccessToken, newPassword) {
   try {
     payload = verifyFirstAccessToken(firstAccessToken);
   } catch {
-    const error = new Error("Token de primer acceso inválido o expirado");
+    const error = new Error("Token de primer acceso invalido o expirado");
     error.statusCode = 401;
     throw error;
   }
 
   const user = await findUserById(payload.sub);
 
-  if (!user) {
-    const error = new Error("Token de primer acceso inválido o expirado");
+  if (!user || user.is_active === false) {
+    const error = new Error("Token de primer acceso invalido o expirado");
     error.statusCode = 401;
     throw error;
   }
@@ -93,11 +98,7 @@ export async function changeTemporaryPassword(firstAccessToken, newPassword) {
 
   const newPasswordHash = await hashPassword(newPassword);
 
-  const updatedUser = await updateUserPassword(
-    user.id_user,
-    newPasswordHash,
-    false
-  );
+  const updatedUser = await updateUserPassword(user.id_user, newPasswordHash, false);
 
   const token = signToken({
     sub: String(updatedUser.id_user),
@@ -114,6 +115,7 @@ export async function changeTemporaryPassword(firstAccessToken, newPassword) {
       nombre: updatedUser.nombre,
       telefono: updatedUser.telefono,
       must_change_password: updatedUser.must_change_password,
+      is_active: updatedUser.is_active,
     },
   };
 }

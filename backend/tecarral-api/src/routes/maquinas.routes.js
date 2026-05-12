@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import {
   getMaquinaria,
   getMaquinaById,        
@@ -10,6 +10,7 @@ import {
   suggestTipo,
   suggestIdMaquina,
   crearMaquina,
+  uploadMaquinaImage,
   editarMaquinariaById,
   deleteMaquinariaById,
   markDelivered,
@@ -23,6 +24,8 @@ import {
   escalarAveriaGrave
 } from "../controllers/maquinas.controller.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
+import { requireRole } from "../middlewares/roles.middleware.js";
+import { ROLES } from "../constants/roles.js";
 
 const router = Router();
 
@@ -38,7 +41,14 @@ router.get("/suggest/id", requireAuth, suggestIdMaquina);
 
 router.post("/recompute-logistics", requireAuth, recomputeLogistics);
 
-router.post("/", requireAuth, crearMaquina);
+router.post("/", requireAuth, requireRole(ROLES.ADMIN), crearMaquina);
+router.post(
+  "/:id/image",
+  requireAuth,
+  requireRole(ROLES.ADMIN),
+  express.raw({ type: () => true, limit: "15mb" }),
+  uploadMaquinaImage
+);
 
 router.get("/:id", requireAuth,  getMaquinaById);        
 router.patch("/:id", requireAuth, editarMaquinariaById);
