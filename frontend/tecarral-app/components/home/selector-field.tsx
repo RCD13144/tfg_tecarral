@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
 
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
@@ -12,6 +13,7 @@ export function SelectorField({
   onToggleOpen,
   onSelect,
   disabled = false,
+  labelStyle,
 }: {
   label: string;
   valueLabel: string;
@@ -20,11 +22,12 @@ export function SelectorField({
   onToggleOpen: () => void;
   onSelect: (value: string) => void;
   disabled?: boolean;
+  labelStyle?: StyleProp<TextStyle>;
 }) {
   return (
     <View style={homeStyles.selectorBlock}>
       <Text style={homeStyles.detailLine}>
-        <Text style={homeStyles.detailLabel}>{label}: </Text>
+        <Text style={[homeStyles.detailLabel, labelStyle]}>{label}: </Text>
       </Text>
       <Pressable
         disabled={disabled}

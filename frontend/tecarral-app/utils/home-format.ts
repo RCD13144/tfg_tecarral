@@ -1,5 +1,8 @@
 import { machineImageMap, normalizeMachineImageKey } from '@/constants/machine-images';
+import { API_BASE_URL } from '@/config/api';
 import type { MachineDetail, MachineFilters, MachineProposalSummary, Maquina } from '@/types/maquina';
+
+const MADRID_TIME_ZONE = 'Europe/Madrid';
 
 export function normalizeValue(value: unknown) {
   return String(value ?? '')
@@ -25,7 +28,18 @@ export function formatMachineName(machine: Maquina) {
   return `Maquina ${machine.id_maquina}`;
 }
 
-export function getMachineImageSource(machine: Pick<Maquina, 'modelo'>) {
+export function getMachineImageSource(machine: Pick<Maquina, 'modelo' | 'image_url'>) {
+  const imageUrl = String(machine.image_url ?? '').trim();
+
+  if (imageUrl.length > 0) {
+    if (/^https?:\/\//i.test(imageUrl)) {
+      return { uri: imageUrl };
+    }
+
+    const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, '');
+    return { uri: `${apiOrigin}${imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`}` };
+  }
+
   const key = normalizeMachineImageKey(machine.modelo);
   const imagesByKey = machineImageMap as Record<string, unknown>;
 
@@ -114,12 +128,17 @@ export function getAllowedMaintenanceOptions(currentStatus: unknown) {
   return [{ label: formatMaintenanceLabel(currentStatus), value: current || 'AVERIADA_GRAVE' }];
 }
 
-export function getLocationOptions(detail: MachineDetail | null) {
+export function getLocationOptions(
+  detail: MachineDetail | null,
+  proposals: MachineProposalSummary[] = []
+) {
   if (!detail) return [];
 
   const current = stripAccents(detail.ubicacion_tipo).trim().toUpperCase();
   const availability = stripAccents(detail.availability_status).trim().toUpperCase();
   const maintenance = stripAccents(detail.maintenance_status).trim().toUpperCase();
+  const transitReason = stripAccents(detail.transit_reason).trim().toUpperCase();
+  const hasAcceptedProposal = proposals.some((proposal) => proposal.estado === 'ACEPTADA');
   const options = new Set<string>();
 
   if (current.length > 0) {
@@ -127,11 +146,19 @@ export function getLocationOptions(detail: MachineDetail | null) {
   }
 
   if (current === 'TRANSITO') {
-    if (maintenance === 'AVERIADA_GRAVE') {
+    if (transitReason === 'REPARACION_TERMINADA') {
+      options.add('CLIENTE');
+    } else if (transitReason === 'ALQUILER_FINALIZADO') {
       options.add('TALLER');
       options.add('ALMACEN');
-    } else {
+    } else if (maintenance === 'AVERIADA_GRAVE') {
+      options.add('TALLER');
+      options.add('ALMACEN');
+    } else if (hasAcceptedProposal) {
       options.add('CLIENTE');
+    } else {
+      options.add('TALLER');
+      options.add('ALMACEN');
     }
   } else if (current === 'TALLER' || current === 'ALMACEN') {
     options.add(current === 'TALLER' ? 'ALMACEN' : 'TALLER');
@@ -164,6 +191,7 @@ export function formatProposalDate(value: unknown) {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: MADRID_TIME_ZONE,
   }).format(date);
 }
 

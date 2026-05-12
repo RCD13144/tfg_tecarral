@@ -24,6 +24,9 @@ export function MachineListView({
   machines,
   cardWidth,
   onOpenMachine,
+  onOpenCreateMachine,
+  canCreateMachine,
+  onOpenHelp,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -40,10 +43,13 @@ export function MachineListView({
   machines: Maquina[];
   cardWidth: number;
   onOpenMachine: (idMaquina: number) => void;
+  onOpenCreateMachine: () => void;
+  canCreateMachine: boolean;
+  onOpenHelp: () => void;
 }) {
   return (
     <View style={homeStyles.homeContent}>
-      <ScreenHeader />
+      <ScreenHeader onHelpPress={onOpenHelp} />
 
       <View style={homeStyles.searchRow}>
         <View style={homeStyles.searchInputWrapper}>
@@ -62,6 +68,12 @@ export function MachineListView({
             Filtrar{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </Text>
         </Pressable>
+
+        {canCreateMachine ? (
+          <Pressable onPress={onOpenCreateMachine} style={homeStyles.addMachineButton}>
+            <Ionicons color={AppColors.primary} name="add" size={20} />
+          </Pressable>
+        ) : null}
       </View>
 
       {query.trim().length >= 2 && (suggestions.length > 0 || loadingSuggestions) ? (

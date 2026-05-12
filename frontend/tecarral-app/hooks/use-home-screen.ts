@@ -1,10 +1,21 @@
 import { Linking } from 'react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 
-import { EMPTY_FILTERS, EMPTY_PROPOSAL_FORM } from '@/constants/home';
+import {
+  EMPTY_FILTERS,
+  EMPTY_MACHINE_CREATE_FORM,
+  EMPTY_MACHINE_EDIT_FORM,
+  EMPTY_PROPOSAL_FORM,
+  EMPTY_REPAIR_BUDGET_FORM,
+} from '@/constants/home';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/services/api';
 import {
+  uploadMachineImage,
+} from '@/services/machine-images';
+import {
+  createMachine,
   getMachineDetail,
   getMachineSuggestions,
   getMaquinas,
@@ -13,8 +24,10 @@ import {
   moveMachineBetweenBases,
   escalateMachineIncidence,
   openMachineIncidence,
+  updateMachineDetail,
   updateMachineMaintenanceStatus,
 } from '@/services/maquinas-api';
+import { createRepairBudget } from '@/services/presupuestos-reparacion-api';
 import { createMachineProposal, getMachineProposals } from '@/services/propuestas-api';
 import type { AuthSession } from '@/types/auth';
 import type { NavigationAppOption } from '@/types/home';
@@ -22,13 +35,16 @@ import type {
   FilterCategoryKey,
   HomeSubview,
   HomeTabKey,
+  MachineCreateFormData,
   MachineDetail,
+  MachineEditFormData,
   MachineFilters,
   MachineProposalSummary,
   Maquina,
   ProposalFormData,
   SearchSuggestion,
 } from '@/types/maquina';
+import type { RepairBudgetFormData } from '@/types/reparacion';
 import {
   getAcceptedProposal,
   getAllowedMaintenanceOptions,
@@ -73,6 +89,26 @@ export function useHomeScreen(session: AuthSession | null) {
   const [proposalForm, setProposalForm] = useState<ProposalFormData>(EMPTY_PROPOSAL_FORM);
   const [proposalSubmitting, setProposalSubmitting] = useState(false);
   const [proposalFeedback, setProposalFeedback] = useState<string | null>(null);
+  const [repairBudgetForm, setRepairBudgetForm] =
+    useState<RepairBudgetFormData>(EMPTY_REPAIR_BUDGET_FORM);
+  const [repairBudgetSubmitting, setRepairBudgetSubmitting] = useState(false);
+  const [repairBudgetFeedback, setRepairBudgetFeedback] = useState<string | null>(null);
+  const [machineEditForm, setMachineEditForm] =
+    useState<MachineEditFormData>(EMPTY_MACHINE_EDIT_FORM);
+  const [machineEditFeedback, setMachineEditFeedback] = useState<string | null>(null);
+  const [machineEditSubmitting, setMachineEditSubmitting] = useState(false);
+  const [machineEditMode, setMachineEditMode] = useState(false);
+  const [machineEditTipoOpen, setMachineEditTipoOpen] = useState(false);
+  const [machineEditMotorOpen, setMachineEditMotorOpen] = useState(false);
+  const [machineEditSeguroOpen, setMachineEditSeguroOpen] = useState(false);
+  const [machineCreateForm, setMachineCreateForm] =
+    useState<MachineCreateFormData>(EMPTY_MACHINE_CREATE_FORM);
+  const [machineCreateFeedback, setMachineCreateFeedback] = useState<string | null>(null);
+  const [machineCreateSubmitting, setMachineCreateSubmitting] = useState(false);
+  const [machineCreateTipoOpen, setMachineCreateTipoOpen] = useState(false);
+  const [machineCreateMotorOpen, setMachineCreateMotorOpen] = useState(false);
+  const [machineCreateSeguroOpen, setMachineCreateSeguroOpen] = useState(false);
+  const [machineCreateElevationLibreOpen, setMachineCreateElevationLibreOpen] = useState(false);
   const [navigationModalOpen, setNavigationModalOpen] = useState(false);
   const [availableNavigationApps, setAvailableNavigationApps] = useState<NavigationAppOption[]>([]);
   const [homeScrollResetKey, setHomeScrollResetKey] = useState(0);
@@ -98,13 +134,19 @@ export function useHomeScreen(session: AuthSession | null) {
   );
 
   const machineImageSource = useMemo(
-    () => (selectedMachineDetail ? getMachineImageSource(selectedMachineDetail) : null),
-    [selectedMachineDetail]
+    () => {
+      if (machineEditMode && machineEditForm.image_uri.trim()) {
+        return { uri: machineEditForm.image_uri.trim() };
+      }
+
+      return selectedMachineDetail ? getMachineImageSource(selectedMachineDetail) : null;
+    },
+    [machineEditForm.image_uri, machineEditMode, selectedMachineDetail]
   );
 
   const locationOptions = useMemo(
-    () => getLocationOptions(selectedMachineDetail),
-    [selectedMachineDetail]
+    () => getLocationOptions(selectedMachineDetail, selectedMachineProposals),
+    [selectedMachineDetail, selectedMachineProposals]
   );
 
   const maintenanceOptions = useMemo(
@@ -113,6 +155,29 @@ export function useHomeScreen(session: AuthSession | null) {
   );
 
   const canCreateProposal = session?.user.role === 'admin';
+  const canCreateMachine = session?.user.role === 'admin';
+  const proposalButtonDisabledReason = acceptedProposal
+    ? `La máquina ya tiene una propuesta aceptada (#${acceptedProposal.id}).`
+    : null;
+  const canOpenProposalForm = canCreateProposal && !acceptedProposal;
+  const showRepairBudgetButton =
+    session?.user.role === 'admin' &&
+    String(selectedMachineDetail?.availability_status ?? '').trim().toUpperCase() === 'ALQUILADA' &&
+    String(selectedMachineDetail?.maintenance_status ?? '').trim().toUpperCase() ===
+      'AVERIADA_GRAVE';
+  const activeRepair = selectedMachineDetail?.active_repair ?? null;
+  const repairBudgetDisabledReason = !showRepairBudgetButton
+    ? null
+    : !activeRepair
+      ? 'No hay una reparación activa grave asociada a esta máquina.'
+      : activeRepair.albaran_estado !== 'FIRMADO'
+        ? 'Antes hay que firmar el albarán correspondiente a la avería grave.'
+        : activeRepair.presupuesto_reparacion_id
+          ? `Ya existe un presupuesto de reparación (#${activeRepair.presupuesto_reparacion_id}).`
+          : activeRepair.propuesta_alquiler_id === null
+            ? 'La reparación no tiene propuesta de alquiler asociada.'
+            : null;
+  const canCreateRepairBudget = showRepairBudgetButton && !repairBudgetDisabledReason;
   const canMarkDelivered = ['TALLER', 'ALMACEN', 'CLIENTE', 'TRANSITO'].includes(
     String(selectedMachineDetail?.ubicacion_tipo ?? '').trim().toUpperCase()
   );
@@ -120,6 +185,126 @@ export function useHomeScreen(session: AuthSession | null) {
     String(selectedMachineDetail?.maintenance_status ?? '').trim().toUpperCase() === 'AVERIADA' &&
     selectedMaintenanceStatus === 'AVERIADA_GRAVE';
   const canSubmitIncidence = incidenceEscalationMode ? true : acceptedProposal !== null;
+  const machineTipoOptions = [
+    { label: 'Elevacion', value: 'elevacion' },
+    { label: 'Limpieza', value: 'limpieza' },
+  ] as const;
+  const machineMotorOptions = [
+    { label: 'Diesel', value: 'diesel' },
+    { label: 'Electrica', value: 'electrica' },
+    { label: 'Semi electrica', value: 'semi electrica' },
+    { label: 'Manual', value: 'manual' },
+  ] as const;
+  const machineSeguroOptions = [
+    { label: 'Si', value: 'true' },
+    { label: 'No', value: 'false' },
+  ] as const;
+  const machineBooleanOptions = machineSeguroOptions;
+
+  async function pickMachineImage(source: 'camera' | 'library', target: 'create' | 'edit' = 'create') {
+    const requestPermission =
+      source === 'camera'
+        ? ImagePicker.requestCameraPermissionsAsync
+        : ImagePicker.requestMediaLibraryPermissionsAsync;
+    const permission = await requestPermission();
+
+    if (!permission.granted) {
+      const feedbackMessage =
+        source === 'camera'
+          ? 'Necesitas permisos de camara para hacer una foto.'
+          : 'Necesitas permisos de galeria para adjuntar una foto.';
+
+      if (target === 'edit') {
+        setMachineEditFeedback(feedbackMessage);
+      } else {
+        setMachineCreateFeedback(feedbackMessage);
+      }
+      return;
+    }
+
+    const result =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            mediaTypes: ['images'],
+            quality: 0.8,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: true,
+            mediaTypes: ['images'],
+            quality: 0.8,
+          });
+
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    if (target === 'edit') {
+      setMachineEditFeedback(null);
+      updateMachineEditForm('image_uri', result.assets[0].uri);
+      return;
+    }
+
+    setMachineCreateFeedback(null);
+    updateMachineCreateForm('image_uri', result.assets[0].uri);
+  }
+
+  function buildMachineEditForm(detail: MachineDetail): MachineEditFormData {
+    const normalizedTipo = String(detail.tipo_maquina ?? '').trim().toLowerCase();
+    const normalizedMotor = String(detail.motor ?? '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    return {
+      marca: String(detail.marca ?? ''),
+      modelo: String(detail.modelo ?? ''),
+      ubicacion: String(detail.ubicacion ?? ''),
+      image_uri: '',
+      tipo: normalizedTipo === 'limpieza' ? 'limpieza' : 'elevacion',
+      motor:
+        normalizedMotor === 'diesel' ||
+        normalizedMotor === 'electrica' ||
+        normalizedMotor === 'semi electrica' ||
+        normalizedMotor === 'manual'
+          ? (normalizedMotor as MachineEditFormData['motor'])
+          : 'electrica',
+      ns: String(detail.ns ?? ''),
+      num_poliza: String(detail.num_poliza ?? ''),
+      observaciones: String(detail.observaciones ?? ''),
+      seguro: detail.seguro === true ? 'true' : 'false',
+    };
+  }
+
+  function patchMachineCaches(idMaquina: number, patch: Partial<MachineDetail>) {
+    setSelectedMachineDetail((current) =>
+      current && current.id_maquina === idMaquina ? { ...current, ...patch } : current
+    );
+    setMachines((current) =>
+      current.map((machine) =>
+        machine.id_maquina === idMaquina ? { ...machine, ...patch } : machine
+      )
+    );
+  }
+
+  function patchActiveRepair(
+    idMaquina: number,
+    updater: (
+      current: NonNullable<MachineDetail['active_repair']>
+    ) => NonNullable<MachineDetail['active_repair']>
+  ) {
+    setSelectedMachineDetail((current) => {
+      if (!current || current.id_maquina !== idMaquina || !current.active_repair) {
+        return current;
+      }
+
+      return {
+        ...current,
+        active_repair: updater(current.active_repair),
+      };
+    });
+  }
 
   function clearDetailSuccessTimeout() {
     if (detailSuccessTimeoutRef.current) {
@@ -281,14 +466,17 @@ export function useHomeScreen(session: AuthSession | null) {
     });
   }
 
-  async function loadMachineContext(idMaquina: number) {
+  async function loadMachineContext(idMaquina: number, options?: { silent?: boolean }) {
     if (!session?.token) {
       return;
     }
 
     try {
-      setDetailLoading(true);
+      if (!options?.silent) {
+        setDetailLoading(true);
+      }
       setDetailFeedback(null);
+      setRepairBudgetFeedback(null);
       setLocationPickerOpen(false);
       setStatusPickerOpen(false);
 
@@ -299,13 +487,23 @@ export function useHomeScreen(session: AuthSession | null) {
 
       setSelectedMachineDetail(detail);
       setSelectedMachineProposals(proposals);
+      setMachineEditForm(buildMachineEditForm(detail));
+      setMachineEditFeedback(null);
+      setMachineEditMode(false);
+      setMachineEditTipoOpen(false);
+      setMachineEditMotorOpen(false);
+      setMachineEditSeguroOpen(false);
       setSelectedTargetLocation(String(detail.ubicacion_tipo ?? '').trim().toUpperCase());
-      resetPendingIncidenceSelection(String(detail.maintenance_status ?? '').trim().toUpperCase());
+      resetPendingIncidenceSelection(
+        String(detail.maintenance_status ?? '').trim().toUpperCase()
+      );
       setProposalsExpanded(false);
     } catch (error) {
       await handleApiError(error, setDetailFeedback, 'No se pudo cargar el detalle de la maquina.');
     } finally {
-      setDetailLoading(false);
+      if (!options?.silent) {
+        setDetailLoading(false);
+      }
     }
   }
 
@@ -318,6 +516,17 @@ export function useHomeScreen(session: AuthSession | null) {
     setHomeSubview('list');
     setDetailFeedback(null);
     setProposalFeedback(null);
+    setRepairBudgetFeedback(null);
+    setMachineEditFeedback(null);
+    setMachineEditMode(false);
+    setMachineEditTipoOpen(false);
+    setMachineEditMotorOpen(false);
+    setMachineEditSeguroOpen(false);
+    setMachineCreateFeedback(null);
+    setMachineCreateTipoOpen(false);
+    setMachineCreateMotorOpen(false);
+    setMachineCreateSeguroOpen(false);
+    setMachineCreateElevationLibreOpen(false);
     setLocationPickerOpen(false);
     setStatusPickerOpen(false);
     setFilterPanelOpen(false);
@@ -337,9 +546,34 @@ export function useHomeScreen(session: AuthSession | null) {
   }
 
   function openProposalForm() {
+    if (!canOpenProposalForm) {
+      return;
+    }
     setProposalForm(EMPTY_PROPOSAL_FORM);
     setProposalFeedback(null);
+    setRepairBudgetFeedback(null);
     setHomeSubview('proposalForm');
+  }
+
+  function openRepairBudgetForm() {
+    setRepairBudgetForm(EMPTY_REPAIR_BUDGET_FORM);
+    setRepairBudgetFeedback(null);
+    setProposalFeedback(null);
+    setHomeSubview('repairBudgetForm');
+  }
+
+  function openCreateMachineForm() {
+    if (!canCreateMachine) {
+      return;
+    }
+
+    setMachineCreateForm(EMPTY_MACHINE_CREATE_FORM);
+    setMachineCreateFeedback(null);
+    setMachineCreateTipoOpen(false);
+    setMachineCreateMotorOpen(false);
+    setMachineCreateSeguroOpen(false);
+    setMachineCreateElevationLibreOpen(false);
+    setHomeSubview('createMachineForm');
   }
 
   function updateProposalForm<K extends keyof ProposalFormData>(key: K, value: ProposalFormData[K]) {
@@ -347,6 +581,75 @@ export function useHomeScreen(session: AuthSession | null) {
       ...current,
       [key]: value,
     }));
+  }
+
+  function updateRepairBudgetForm<K extends keyof RepairBudgetFormData>(
+    key: K,
+    value: RepairBudgetFormData[K]
+  ) {
+    setRepairBudgetForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function updateMachineEditForm<K extends keyof MachineEditFormData>(
+    key: K,
+    value: MachineEditFormData[K]
+  ) {
+    setMachineEditForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function updateMachineCreateForm<K extends keyof MachineCreateFormData>(
+    key: K,
+    value: MachineCreateFormData[K]
+  ) {
+    setMachineCreateForm((current) => {
+      if (key === 'tipo') {
+      return {
+          ...EMPTY_MACHINE_CREATE_FORM,
+          marca: current.marca,
+          modelo: current.modelo,
+          ns: current.ns,
+          image_uri: current.image_uri,
+          tipo: value as MachineCreateFormData['tipo'],
+          motor: current.motor,
+          seguro: current.seguro,
+          num_poliza: current.num_poliza,
+          observaciones: current.observaciones,
+        };
+      }
+
+      return {
+        ...current,
+        [key]: value,
+      };
+    });
+  }
+
+  function handleOpenMachineEdit() {
+    if (!selectedMachineDetail) {
+      return;
+    }
+
+    setMachineEditForm(buildMachineEditForm(selectedMachineDetail));
+    setMachineEditFeedback(null);
+    setMachineEditMode(true);
+  }
+
+  function handleCancelMachineEdit() {
+    if (selectedMachineDetail) {
+      setMachineEditForm(buildMachineEditForm(selectedMachineDetail));
+    }
+
+    setMachineEditFeedback(null);
+    setMachineEditMode(false);
+    setMachineEditTipoOpen(false);
+    setMachineEditMotorOpen(false);
+    setMachineEditSeguroOpen(false);
   }
 
   function validateProposalForm() {
@@ -380,6 +683,52 @@ export function useHomeScreen(session: AuthSession | null) {
     return null;
   }
 
+  function validateRepairBudgetForm() {
+    if (!activeRepair?.id_reparacion) {
+      return 'No hay una reparación activa para crear el presupuesto.';
+    }
+
+    if (!activeRepair.propuesta_alquiler_id) {
+      return 'La reparación no tiene propuesta de alquiler asociada.';
+    }
+
+    if (!repairBudgetForm.importe_total.trim() || Number(repairBudgetForm.importe_total) < 0) {
+      return 'Introduce un importe total válido.';
+    }
+
+    if (!repairBudgetForm.expira_at.trim() || !repairBudgetForm.expira_at.includes('T')) {
+      return 'expira_at debe ir en formato ISO, por ejemplo 2026-05-20T10:00:00.';
+    }
+
+    const expiresAtDate = new Date(repairBudgetForm.expira_at);
+
+    if (Number.isNaN(expiresAtDate.getTime())) {
+      return 'La fecha de expedición seleccionada no es válida.';
+    }
+
+    if (expiresAtDate.getTime() <= Date.now()) {
+      return 'La fecha de expedición debe ser futura.';
+    }
+
+    return null;
+  }
+
+  function validateMachineEditForm() {
+    if (!machineEditForm.marca.trim()) return 'Introduce la marca.';
+    if (!machineEditForm.modelo.trim()) return 'Introduce el modelo.';
+    if (!machineEditForm.ubicacion.trim()) return 'Introduce la direccion.';
+    if (!machineEditForm.ns.trim()) return 'Introduce el numero de serie.';
+
+    return null;
+  }
+
+  function validateMachineCreateForm() {
+    if (!machineCreateForm.marca.trim()) return 'Introduce la marca.';
+    if (!machineCreateForm.modelo.trim()) return 'Introduce el modelo.';
+    if (!machineCreateForm.ns.trim()) return 'Introduce el numero de serie.';
+    return null;
+  }
+
   async function handleCreateProposal() {
     if (!session?.token || !selectedMachineDetail) {
       return;
@@ -401,7 +750,7 @@ export function useHomeScreen(session: AuthSession | null) {
         session.token
       );
 
-      await loadMachineContext(selectedMachineDetail.id_maquina);
+      setSelectedMachineProposals((current) => [response, ...current]);
       setHomeSubview('detail');
       if (response.email_sent === false) {
         setDetailFeedback('Propuesta creada, pero no se pudo enviar el email.');
@@ -409,10 +758,156 @@ export function useHomeScreen(session: AuthSession | null) {
         setDetailFeedback(null);
         showTemporaryDetailSuccess('Propuesta creada correctamente.');
       }
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
       await handleApiError(error, setProposalFeedback, 'No se pudo crear la propuesta.');
     } finally {
       setProposalSubmitting(false);
+    }
+  }
+
+  async function handleCreateRepairBudget() {
+    if (!session?.token || !selectedMachineDetail || !activeRepair) {
+      return;
+    }
+
+    const validationError = validateRepairBudgetForm();
+    if (validationError) {
+      setRepairBudgetFeedback(validationError);
+      return;
+    }
+
+    try {
+      setRepairBudgetSubmitting(true);
+      setRepairBudgetFeedback(null);
+
+      const response = await createRepairBudget(
+        {
+          reparacion_id: activeRepair.id_reparacion,
+          propuesta_alquiler_id: Number(activeRepair.propuesta_alquiler_id),
+          importe_total: Number(repairBudgetForm.importe_total),
+          condiciones: repairBudgetForm.condiciones.trim() || null,
+          expira_at: repairBudgetForm.expira_at,
+        },
+        session.token
+      );
+
+      patchActiveRepair(selectedMachineDetail.id_maquina, (current) => ({
+        ...current,
+        presupuesto_reparacion_id: response.id,
+        presupuesto_estado: response.estado,
+      }));
+      setHomeSubview('detail');
+
+      if (response.email_sent === false) {
+        setDetailFeedback('Presupuesto creado, pero no se pudo enviar el email.');
+      } else {
+        setDetailFeedback(null);
+        showTemporaryDetailSuccess('Presupuesto de reparación creado correctamente.');
+      }
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
+    } catch (error) {
+      await handleApiError(
+        error,
+        setRepairBudgetFeedback,
+        'No se pudo crear el presupuesto de reparación.'
+      );
+    } finally {
+      setRepairBudgetSubmitting(false);
+    }
+  }
+
+  async function handleSaveMachineEdit() {
+    if (!session?.token || !selectedMachineDetail) {
+      return;
+    }
+
+    const validationError = validateMachineEditForm();
+    if (validationError) {
+      setMachineEditFeedback(validationError);
+      return;
+    }
+
+    try {
+      setMachineEditSubmitting(true);
+      setMachineEditFeedback(null);
+
+      const updatedMachineResponse = await updateMachineDetail(
+        selectedMachineDetail.id_maquina,
+        machineEditForm,
+        session.token
+      );
+      const uploadedMachine =
+        machineEditForm.image_uri.trim().length > 0
+          ? await uploadMachineImage(
+              selectedMachineDetail.id_maquina,
+              machineEditForm.image_uri,
+              session.token
+            )
+          : null;
+      const updatedMachine = uploadedMachine ?? updatedMachineResponse;
+
+      patchMachineCaches(selectedMachineDetail.id_maquina, updatedMachine);
+      setMachineEditForm(buildMachineEditForm(updatedMachine));
+      setMachineEditMode(false);
+      setMachineEditTipoOpen(false);
+      setMachineEditMotorOpen(false);
+      setMachineEditSeguroOpen(false);
+      showTemporaryDetailSuccess(
+        uploadedMachine || !machineEditForm.image_uri.trim()
+          ? 'Maquinaria actualizada correctamente.'
+          : 'Maquinaria actualizada, pero no se pudo subir la imagen.'
+      );
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
+    } catch (error) {
+      await handleApiError(
+        error,
+        setMachineEditFeedback,
+        'No se pudo guardar la informacion de la maquinaria.'
+      );
+    } finally {
+      setMachineEditSubmitting(false);
+    }
+  }
+
+  async function handleCreateMachine() {
+    if (!session?.token || !canCreateMachine) {
+      return;
+    }
+
+    const validationError = validateMachineCreateForm();
+    if (validationError) {
+      setMachineCreateFeedback(validationError);
+      return;
+    }
+
+    try {
+      setMachineCreateSubmitting(true);
+      setMachineCreateFeedback(null);
+
+      const createdMachine = await createMachine(machineCreateForm, session.token);
+      const uploadedMachine = machineCreateForm.image_uri.trim()
+        ? await uploadMachineImage(
+            createdMachine.id_maquina,
+            machineCreateForm.image_uri,
+            session.token
+          ).catch(() => null)
+        : null;
+      const createdMachineWithImage = uploadedMachine ?? createdMachine;
+
+      setMachines((current) =>
+        [...current, createdMachineWithImage].sort((a, b) => a.id_maquina - b.id_maquina)
+      );
+      setHomeSubview('list');
+      showTemporaryDetailSuccess(
+        uploadedMachine || !machineCreateForm.image_uri.trim()
+          ? 'Maquina creada correctamente.'
+          : 'Maquina creada, pero no se pudo subir la imagen.'
+      );
+    } catch (error) {
+      await handleApiError(error, setMachineCreateFeedback, 'No se pudo crear la maquina.');
+    } finally {
+      setMachineCreateSubmitting(false);
     }
   }
 
@@ -439,23 +934,41 @@ export function useHomeScreen(session: AuthSession | null) {
 
       if (nextLocation === 'CLIENTE') {
         await markMachineDelivered(selectedMachineDetail.id_maquina, session.token);
+        patchMachineCaches(selectedMachineDetail.id_maquina, {
+          ubicacion_tipo: 'CLIENTE',
+          logistics_status: 'ENTREGADA',
+          transit_reason: null,
+          ubicacion:
+            acceptedProposal?.direccion && acceptedProposal?.poblacion
+              ? `${acceptedProposal.direccion}, ${acceptedProposal.poblacion}`
+              : selectedMachineDetail.ubicacion,
+        });
       } else if (currentLocation === 'TRANSITO') {
-        await markMachineArrivedAtBase(
+        const updatedMachine = await markMachineArrivedAtBase(
           selectedMachineDetail.id_maquina,
           nextLocation === 'ALMACEN' ? 'almacen' : 'taller',
           session.token
         );
+        patchMachineCaches(selectedMachineDetail.id_maquina, {
+          ...updatedMachine,
+        });
       } else {
-        await moveMachineBetweenBases(
+        const updatedMachine = await moveMachineBetweenBases(
           selectedMachineDetail.id_maquina,
           nextLocation === 'ALMACEN' ? 'almacen' : 'taller',
           session.token
         );
+        patchMachineCaches(selectedMachineDetail.id_maquina, {
+          ...updatedMachine,
+        });
       }
 
-      await loadMachineContext(selectedMachineDetail.id_maquina);
+      setSelectedTargetLocation(nextLocation);
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
       await handleApiError(error, setDetailFeedback, 'No se pudo actualizar la ubicacion.');
+      setSelectedTargetLocation(currentLocation);
+      await loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } finally {
       setLocationActionLoading(false);
     }
@@ -507,7 +1020,10 @@ export function useHomeScreen(session: AuthSession | null) {
 
       setStatusPickerOpen(false);
       resetPendingIncidenceSelection(nextStatus);
-      await loadMachineContext(selectedMachineDetail.id_maquina);
+      patchMachineCaches(selectedMachineDetail.id_maquina, {
+        maintenance_status: nextStatus,
+      });
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
       await handleApiError(error, setDetailFeedback, 'No se pudo actualizar el estado.');
 
@@ -569,7 +1085,15 @@ export function useHomeScreen(session: AuthSession | null) {
       }
 
       resetPendingIncidenceSelection(nextStatus);
-      await loadMachineContext(selectedMachineDetail.id_maquina);
+      patchMachineCaches(selectedMachineDetail.id_maquina, {
+        maintenance_status: nextStatus,
+        ubicacion_tipo:
+          nextStatus === 'AVERIADA_GRAVE'
+            ? 'TRANSITO'
+            : selectedMachineDetail.ubicacion_tipo,
+        logistics_status: nextStatus === 'AVERIADA_GRAVE' ? 'EN_CAMINO' : null,
+      });
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
       await handleApiError(error, setDetailFeedback, 'No se pudo abrir la incidencia.');
     } finally {
@@ -707,6 +1231,27 @@ export function useHomeScreen(session: AuthSession | null) {
     proposalForm,
     proposalSubmitting,
     proposalFeedback,
+    repairBudgetForm,
+    repairBudgetSubmitting,
+    repairBudgetFeedback,
+    machineCreateForm,
+    machineCreateFeedback,
+    machineCreateSubmitting,
+    machineCreateTipoOpen,
+    machineCreateMotorOpen,
+    machineCreateSeguroOpen,
+    machineCreateElevationLibreOpen,
+    machineEditForm,
+    machineEditFeedback,
+    machineEditSubmitting,
+    machineEditMode,
+    machineEditTipoOpen,
+    machineEditMotorOpen,
+    machineEditSeguroOpen,
+    machineTipoOptions,
+    machineMotorOptions,
+    machineSeguroOptions,
+    machineBooleanOptions,
     navigationModalOpen,
     availableNavigationApps,
     acceptedProposal,
@@ -714,6 +1259,12 @@ export function useHomeScreen(session: AuthSession | null) {
     locationOptions,
     maintenanceOptions,
     canCreateProposal,
+    canCreateMachine,
+    canOpenProposalForm,
+    proposalButtonDisabledReason,
+    showRepairBudgetButton,
+    canCreateRepairBudget,
+    repairBudgetDisabledReason,
     canMarkDelivered,
     canSubmitIncidence,
     incidenceEscalationMode,
@@ -721,8 +1272,19 @@ export function useHomeScreen(session: AuthSession | null) {
     openMachineDetail,
     resetToListView,
     openProposalForm,
+    openCreateMachineForm,
+    openRepairBudgetForm,
     updateProposalForm,
+    updateRepairBudgetForm,
+    updateMachineCreateForm,
+    pickMachineImage,
+    updateMachineEditForm,
     handleCreateProposal,
+    handleCreateMachine,
+    handleCreateRepairBudget,
+    handleOpenMachineEdit,
+    handleCancelMachineEdit,
+    handleSaveMachineEdit,
     handleLocationChange,
     handleConfirmLocation,
     handleMaintenanceChange,
@@ -738,5 +1300,12 @@ export function useHomeScreen(session: AuthSession | null) {
     setProposalsExpanded,
     setNavigationModalOpen,
     setIncidenceComment,
+    setMachineEditTipoOpen,
+    setMachineEditMotorOpen,
+    setMachineEditSeguroOpen,
+    setMachineCreateTipoOpen,
+    setMachineCreateMotorOpen,
+    setMachineCreateSeguroOpen,
+    setMachineCreateElevationLibreOpen,
   };
 }

@@ -1,3 +1,5 @@
+import type { ActiveRepairSummary } from '@/types/reparacion';
+
 export interface Maquina {
   id_maquina: number;
   tipo?: string | null;
@@ -7,11 +9,14 @@ export interface Maquina {
   motor?: string | null;
   ubicacion_tipo?: string | null;
   availability_status?: string | null;
+  transit_reason?: 'REPARACION_TERMINADA' | 'ALQUILER_FINALIZADO' | null;
+  image_path?: string | null;
+  image_url?: string | null;
   [key: string]: unknown;
 }
 
 export type HomeTabKey = 'home' | 'albaran' | 'reparacion' | 'user';
-export type HomeSubview = 'list' | 'detail' | 'proposalForm';
+export type HomeSubview = 'list' | 'detail' | 'proposalForm' | 'repairBudgetForm' | 'createMachineForm';
 
 export type FilterCategoryKey =
   | 'availability'
@@ -43,12 +48,14 @@ export interface MachineMaps {
 
 export interface MachineDetail extends Maquina {
   ubicacion?: string | null;
+  observaciones?: string | null;
   ns?: string | null;
   seguro?: boolean | null;
   num_poliza?: string | null;
   maintenance_status?: string | null;
   logistics_status?: string | null;
   maps?: MachineMaps | null;
+  active_repair?: ActiveRepairSummary | null;
   elev_ruedas?: string | number | null;
   elev_cap_carga?: string | number | null;
   elev_replegado_mm?: string | number | null;
@@ -87,6 +94,45 @@ export interface ProposalFormData {
   precio: string;
   fecha_inicio: string;
   fecha_fin: string;
+}
+
+export interface MachineEditFormData {
+  marca: string;
+  modelo: string;
+  ubicacion: string;
+  image_uri: string;
+  tipo: 'elevacion' | 'limpieza';
+  motor: 'diesel' | 'electrica' | 'semi electrica' | 'manual';
+  ns: string;
+  num_poliza: string;
+  observaciones: string;
+  seguro: 'true' | 'false';
+}
+
+export interface MachineCreateFormData {
+  marca: string;
+  modelo: string;
+  ns: string;
+  image_uri: string;
+  tipo: 'elevacion' | 'limpieza';
+  motor: 'diesel' | 'electrica' | 'semi electrica' | 'manual' | '';
+  seguro: 'true' | 'false' | '';
+  num_poliza: string;
+  observaciones: string;
+  elev_ruedas: string;
+  elev_cap_carga: string;
+  elev_replegado_mm: string;
+  elev_elevacion_libre: 'true' | 'false' | '';
+  elev_elevacion: string;
+  elev_desplazamiento: string;
+  elev_posicion: string;
+  elev_antihuella: string;
+  elev_matricula: string;
+  elev_largo: string;
+  elev_alto: string;
+  elev_ancho: string;
+  elev_peso_kg: string;
+  elev_horquillas: string;
 }
 
 export interface SearchSuggestion {

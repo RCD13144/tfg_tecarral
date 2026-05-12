@@ -3,6 +3,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -42,54 +43,60 @@ export function AuthForm({
 }: AuthFormProps) {
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
-      <View style={styles.card}>
-        <Image
-          source={require('@/assets/images/tecarral-logo.jpg')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.title}>{title}</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <Image
+            source={require('@/assets/images/tecarral-logo.jpg')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>{title}</Text>
 
-        <View style={styles.fieldsContainer}>
-          {fields.map((field) => (
-            <View key={field.label} style={styles.fieldWrapper}>
-              <Text style={styles.label}>{field.label}</Text>
-              <TextInput
-                autoCapitalize={field.autoCapitalize ?? 'none'}
-                autoCorrect={false}
-                keyboardType={field.keyboardType}
-                placeholder=""
-                placeholderTextColor={AppColors.primary50}
-                secureTextEntry={field.secureTextEntry}
-                selectionColor={AppColors.primary}
-                style={styles.input}
-                textContentType={field.textContentType}
-                value={field.value}
-                onChangeText={field.onChangeText}
-              />
-            </View>
-          ))}
+          <View style={styles.fieldsContainer}>
+            {fields.map((field) => (
+              <View key={field.label} style={styles.fieldWrapper}>
+                <Text style={styles.label}>{field.label}</Text>
+                <TextInput
+                  autoCapitalize={field.autoCapitalize ?? 'none'}
+                  autoCorrect={false}
+                  keyboardType={field.keyboardType}
+                  placeholder=""
+                  placeholderTextColor={AppColors.primary50}
+                  secureTextEntry={field.secureTextEntry}
+                  selectionColor={AppColors.primary}
+                  style={styles.input}
+                  textContentType={field.textContentType}
+                  value={field.value}
+                  onChangeText={field.onChangeText}
+                />
+              </View>
+            ))}
+          </View>
+
+          {feedback ? (
+            <Text
+              style={[
+                styles.feedback,
+                feedbackTone === 'error' ? styles.feedbackError : styles.feedbackSuccess,
+              ]}>
+              {feedback}
+            </Text>
+          ) : null}
+
+          <Pressable
+            disabled={disabled}
+            style={[styles.button, disabled && styles.buttonDisabled]}
+            onPress={onSubmit}>
+            <Text style={styles.buttonText}>{buttonLabel}</Text>
+          </Pressable>
         </View>
-
-        {feedback ? (
-          <Text
-            style={[
-              styles.feedback,
-              feedbackTone === 'error' ? styles.feedbackError : styles.feedbackSuccess,
-            ]}>
-            {feedback}
-          </Text>
-        ) : null}
-
-        <Pressable
-          disabled={disabled}
-          style={[styles.button, disabled && styles.buttonDisabled]}
-          onPress={onSubmit}>
-          <Text style={styles.buttonText}>{buttonLabel}</Text>
-        </Pressable>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -98,8 +105,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 34,
+    paddingVertical: 24,
   },
   card: {
     alignItems: 'center',

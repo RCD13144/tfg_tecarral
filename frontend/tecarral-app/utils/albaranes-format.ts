@@ -6,6 +6,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('es-ES', {
   year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
+  timeZone: 'Europe/Madrid',
 });
 
 export function formatAlbaranDate(value: string | null | undefined) {

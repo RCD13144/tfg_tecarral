@@ -4,7 +4,7 @@ import { Image, Pressable, View } from 'react-native';
 import { AppColors } from '@/constants/theme';
 import { screenHeaderStyles } from '@/styles/screen-header.styles';
 
-export function ScreenHeader() {
+export function ScreenHeader({ onHelpPress }: { onHelpPress?: () => void }) {
   return (
     <View style={screenHeaderStyles.row}>
       <View style={screenHeaderStyles.sideSlot} />
@@ -16,7 +16,7 @@ export function ScreenHeader() {
       />
 
       <View style={screenHeaderStyles.sideSlot}>
-        <Pressable onPress={() => undefined} style={screenHeaderStyles.infoButton}>
+        <Pressable onPress={onHelpPress} style={screenHeaderStyles.infoButton}>
           <Ionicons color={AppColors.primary} name="help" size={14} />
         </Pressable>
       </View>

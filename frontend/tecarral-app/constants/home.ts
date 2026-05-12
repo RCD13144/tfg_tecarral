@@ -1,4 +1,13 @@
-import type { FilterCategoryKey, HomeTabKey, MachineDetail, MachineFilters, ProposalFormData } from '@/types/maquina';
+import type {
+  FilterCategoryKey,
+  HomeTabKey,
+  MachineCreateFormData,
+  MachineDetail,
+  MachineEditFormData,
+  MachineFilters,
+  ProposalFormData,
+} from '@/types/maquina';
+import type { RepairBudgetFormData } from '@/types/reparacion';
 
 export const LOGIN_ROUTE = '/login' as never;
 export const TAB_BAR_HORIZONTAL_PADDING = 22;
@@ -92,6 +101,51 @@ export const EMPTY_PROPOSAL_FORM: ProposalFormData = {
   fecha_fin: '',
 };
 
+export const EMPTY_REPAIR_BUDGET_FORM: RepairBudgetFormData = {
+  importe_total: '',
+  condiciones: '',
+  expira_at: '',
+};
+
+export const EMPTY_MACHINE_EDIT_FORM: MachineEditFormData = {
+  marca: '',
+  modelo: '',
+  ubicacion: '',
+  image_uri: '',
+  tipo: 'elevacion',
+  motor: 'electrica',
+  ns: '',
+  num_poliza: '',
+  observaciones: '',
+  seguro: 'false',
+};
+
+export const EMPTY_MACHINE_CREATE_FORM: MachineCreateFormData = {
+  marca: '',
+  modelo: '',
+  ns: '',
+  image_uri: '',
+  tipo: 'elevacion',
+  motor: '',
+  seguro: '',
+  num_poliza: '',
+  observaciones: '',
+  elev_ruedas: '',
+  elev_cap_carga: '',
+  elev_replegado_mm: '',
+  elev_elevacion_libre: '',
+  elev_elevacion: '',
+  elev_desplazamiento: '',
+  elev_posicion: '',
+  elev_antihuella: '',
+  elev_matricula: '',
+  elev_largo: '',
+  elev_alto: '',
+  elev_ancho: '',
+  elev_peso_kg: '',
+  elev_horquillas: '',
+};
+
 export const MONTH_NAMES = [
   'Enero',
   'Febrero',
@@ -121,17 +175,17 @@ export const COMMON_DETAIL_FIELDS: { label: string; key: keyof MachineDetail }[]
 
 export const ELEVATION_DETAIL_FIELDS: { label: string; key: keyof MachineDetail }[] = [
   { label: 'Ruedas', key: 'elev_ruedas' },
-  { label: 'Capacidad de carga', key: 'elev_cap_carga' },
-  { label: 'Replegado', key: 'elev_replegado_mm' },
+  { label: 'Capacidad de carga (Kg)', key: 'elev_cap_carga' },
+  { label: 'Replegado (cm)', key: 'elev_replegado_mm' },
   { label: 'Elevacion libre', key: 'elev_elevacion_libre' },
-  { label: 'Elevacion', key: 'elev_elevacion' },
+  { label: 'Elevacion (cm)', key: 'elev_elevacion' },
   { label: 'Desplazamiento', key: 'elev_desplazamiento' },
   { label: 'Posicion', key: 'elev_posicion' },
   { label: 'Antihuella', key: 'elev_antihuella' },
   { label: 'Matricula', key: 'elev_matricula' },
-  { label: 'Largo', key: 'elev_largo' },
-  { label: 'Alto', key: 'elev_alto' },
-  { label: 'Ancho', key: 'elev_ancho' },
-  { label: 'Peso', key: 'elev_peso_kg' },
-  { label: 'Horquillas', key: 'elev_horquillas' },
+  { label: 'Largo (cm)', key: 'elev_largo' },
+  { label: 'Alto (cm)', key: 'elev_alto' },
+  { label: 'Ancho (cm)', key: 'elev_ancho' },
+  { label: 'Peso (Kg)', key: 'elev_peso_kg' },
+  { label: 'Horquillas (cm)', key: 'elev_horquillas' },
 ];
