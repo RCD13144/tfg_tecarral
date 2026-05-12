@@ -1,0 +1,2 @@
+ALTER TABLE maquina
+ADD COLUMN IF NOT EXISTS image_path TEXT;

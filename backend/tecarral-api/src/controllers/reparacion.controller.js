@@ -2,6 +2,23 @@ import * as reparacionService from "../services/reparacion.service.js";
 import { parseId, validateId } from "../schemas/common.schema.js";
 import {validateMarcarReparacionTerminadaBody} from "../schemas/reparacion.schema.js"
 
+export async function getReparaciones(req, res) {
+  try {
+    const idUser = Number(req.user?.id_user);
+    const role = req.user?.role;
+
+    if (!validateId(idUser)) {
+      res.status(401).json({ error: "Usuario no autenticado" });
+      return;
+    }
+
+    const reparaciones = await reparacionService.getReparacionesActivas(idUser, role);
+    res.status(200).json(reparaciones);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error", meta: e.meta });
+  }
+}
+
 export async function asignarAveria(req, res) {
   try {
     const idReparacion = parseId(req.params.id);

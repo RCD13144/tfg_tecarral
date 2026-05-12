@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
 
 import authRoutes from "./routes/auth.routes.js";
 import usersRoutes from "./routes/users.routes.js";
@@ -21,6 +22,8 @@ app.use(express.json({ limit: "10mb" }));
 app.get("/", (req, res) => {
   res.json({ message: "API Tecarral funcionando correctamente" });
 });
+
+app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);

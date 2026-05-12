@@ -1,7 +1,13 @@
-import { hashPassword } from "../utils/password.js";
+import { hashPassword, verifyPassword } from "../utils/password.js";
 import {
   createUser,
+  deleteUser,
+  findUserAuthById,
   findUserByEmail,
+  findUserById,
+  listUsers,
+  updateUserPhone,
+  updateUserPassword,
 } from "../repositories/users.repository.js";
 
 function generateTemporaryPassword(length = 12) {
@@ -47,6 +53,7 @@ export function getAuthenticatedUser(user) {
     nombre: user.nombre,
     telefono: user.telefono,
     must_change_password: user.must_change_password,
+    is_active: user.is_active,
   };
 }
 
@@ -68,17 +75,82 @@ export async function createUserByAdmin(email, role, nombre, telefono) {
   const temporaryPassword = generateTemporaryPassword();
   const passwordHash = await hashPassword(temporaryPassword);
 
-  const user = await createUser(
-    email,
-    passwordHash,
-    role,
-    nombre,
-    telefono,
-    true
-  );
+  const user = await createUser(email, passwordHash, role, nombre, telefono, true);
 
   return {
     user,
     temporaryPassword,
   };
+}
+
+export async function listUsersForAdmin() {
+  return listUsers();
+}
+
+export async function updateAuthenticatedUser(idUser, telefono) {
+  const existingUser = await findUserById(idUser);
+
+  if (!existingUser || existingUser.is_active === false) {
+    const error = new Error("Usuario no encontrado");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const updatedUser = await updateUserPhone(idUser, telefono);
+  return updatedUser;
+}
+
+export async function deactivateUserByAdmin(actorUserId, targetUserId) {
+  if (Number(actorUserId) === Number(targetUserId)) {
+    const error = new Error("No puedes darte de baja a ti mismo");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const existingUser = await findUserById(targetUserId);
+
+  if (!existingUser) {
+    const error = new Error("Usuario no encontrado");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  try {
+    return await deleteUser(targetUserId);
+  } catch (error) {
+    if (error?.code === "23503") {
+      const conflictError = new Error(
+        "No se puede eliminar este usuario porque tiene informacion relacionada en el sistema"
+      );
+      conflictError.statusCode = 409;
+      throw conflictError;
+    }
+
+    throw error;
+  }
+}
+
+export async function changeAuthenticatedUserPassword(
+  idUser,
+  currentPassword,
+  newPassword
+) {
+  const existingUser = await findUserAuthById(idUser);
+
+  if (!existingUser || existingUser.is_active === false) {
+    const error = new Error("Usuario no encontrado");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const passwordIsValid = await verifyPassword(currentPassword, existingUser.password_hash);
+
+  if (!passwordIsValid) {
+    const error = new Error("La contraseña actual no es correcta");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const newPasswordHash = await hashPassword(newPassword);
+  return updateUserPassword(idUser, newPasswordHash, false);
 }

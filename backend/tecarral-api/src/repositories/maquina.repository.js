@@ -68,6 +68,97 @@ export async function getAllMaquinaria() {
     return result.rows;
 }
 
+export async function getMaquinaByIdForImageUpdate(idMaquina) {
+    const result = await pool.query(
+        `
+        SELECT id_maquina, image_path
+        FROM maquina
+        WHERE id_maquina = $1
+        `,
+        [idMaquina]
+    );
+
+    return result.rows[0] ?? null;
+}
+
+export async function updateMachineImagePath(idMaquina, imagePath) {
+    const result = await pool.query(
+        `
+        UPDATE maquina
+        SET image_path = $2
+        WHERE id_maquina = $1
+        RETURNING *;
+        `,
+        [idMaquina, imagePath]
+    );
+
+    return result.rows[0] ?? null;
+}
+
+export async function enforceTransitLogisticsConsistency(idMaquina = null) {
+    const values = [];
+    let machineCondition = "";
+
+    if (Number.isInteger(idMaquina) && idMaquina > 0) {
+        values.push(idMaquina);
+        machineCondition = ` AND id_maquina = $${values.length}`;
+    }
+
+    await pool.query(
+        `
+        UPDATE maquina
+        SET logistics_status = 'EN_CAMINO'
+        WHERE ubicacion_tipo = 'TRANSITO'
+          AND COALESCE(logistics_status, '') <> 'EN_CAMINO'
+          ${machineCondition}
+        `,
+        values
+    );
+}
+
+export async function reconcileEndedRentalsTransit(idMaquina = null) {
+    const values = [];
+    let proposalCondition = "";
+
+    if (Number.isInteger(idMaquina) && idMaquina > 0) {
+        values.push(idMaquina);
+        proposalCondition = ` AND p.id_maquina = $${values.length}`;
+    }
+
+    await pool.query(
+        `
+        WITH ended AS (
+          SELECT DISTINCT p.id_maquina
+          FROM propuesta_alquiler p
+          JOIN maquina m
+            ON m.id_maquina = p.id_maquina
+          WHERE p.estado = 'FINALIZADA'
+            AND m.availability_status = 'ALQUILADA'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM propuesta_alquiler pa
+              WHERE pa.id_maquina = p.id_maquina
+                AND pa.estado = 'ACEPTADA'
+            )
+            AND (
+              m.ubicacion_tipo <> 'TRANSITO'
+              OR COALESCE(m.logistics_status, '') <> 'EN_CAMINO'
+              OR COALESCE(m.transit_reason, '') <> 'ALQUILER_FINALIZADO'
+            )
+            ${proposalCondition}
+        )
+        UPDATE maquina m
+        SET
+          ubicacion_tipo = 'TRANSITO',
+          logistics_status = 'EN_CAMINO',
+          transit_reason = 'ALQUILER_FINALIZADO'
+        FROM ended e
+        WHERE m.id_maquina = e.id_maquina
+        `,
+        values
+    );
+}
+
 export async function getMaquinariaByIdFromDB(id) {
     const result = await pool.query(
         `
@@ -364,48 +455,89 @@ export async function suggestIdMaquina(text) {
     return result.rows.map((r) => r.id_maquina);
 }
 
-export async function crearMaquina(
-    subtipo,
-    marca,
-    motor,
-    modelo,
-    ns,
-    seguro,
-    num_poliza,
-    alquilada,
-    ubicacion,
-    observaciones,
-    tipo,
-    ubicacion_tipo
-) {
+export async function crearMaquina(data) {
+    const client = await pool.connect();
 
-    const query = `
-        INSERT INTO maquina (
-            marca, motor, modelo, ns, seguro, num_poliza, alquilada,
-            ubicacion, observaciones, tipo, tipo_maquina, ubicacion_tipo
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-        RETURNING *;
-    `;
+    try {
+        await client.query("BEGIN");
 
-    const values = [
-        marca,
-        motor,
-        modelo,
-        ns,
-        seguro,
-        num_poliza,
-        alquilada,
-        ubicacion,
-        observaciones,
-        subtipo,
-        tipo,
-        ubicacion_tipo
-    ];
+        const query = `
+            INSERT INTO maquina (
+                marca, motor, modelo, ns, seguro, num_poliza,
+                ubicacion, observaciones, tipo, tipo_maquina, ubicacion_tipo,
+                availability_status, maintenance_status, logistics_status
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DISPONIBLE','OK',NULL)
+            RETURNING *;
+        `;
 
-    const result = await pool.query(query, values);
+        const values = [
+            data.marca,
+            data.motor,
+            data.modelo,
+            data.ns,
+            data.seguro,
+            data.num_poliza,
+            data.ubicacion ?? UBICACION_TEXT.TALLER,
+            data.observaciones,
+            data.subtipo,
+            data.tipo,
+            data.ubicacion_tipo ?? "TALLER"
+        ];
 
-    return result.rows[0];
+        const insertRes = await client.query(query, values);
+        const maquina = insertRes.rows[0];
+
+        if (data.tipo === "elevacion") {
+            await client.query(
+                `
+                INSERT INTO maquina_elevacion (
+                    id_maquina,
+                    ruedas,
+                    cap_carga,
+                    replegado_mm,
+                    elevacion_libre,
+                    elevacion,
+                    desplazamiento,
+                    posicion,
+                    antihuella,
+                    matricula,
+                    largo,
+                    alto,
+                    ancho,
+                    peso_kg,
+                    horquillas
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                `,
+                [
+                    maquina.id_maquina,
+                    data.elev_ruedas ?? null,
+                    data.elev_cap_carga ?? null,
+                    data.elev_replegado_mm ?? null,
+                    data.elev_elevacion_libre ?? null,
+                    data.elev_elevacion ?? null,
+                    data.elev_desplazamiento ?? null,
+                    data.elev_posicion ?? null,
+                    data.elev_antihuella ?? null,
+                    data.elev_matricula ?? null,
+                    data.elev_largo ?? null,
+                    data.elev_alto ?? null,
+                    data.elev_ancho ?? null,
+                    data.elev_peso_kg ?? null,
+                    data.elev_horquillas ?? null,
+                ]
+            );
+        }
+
+        await client.query("COMMIT");
+        return maquina;
+    } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+    } finally {
+        client.release();
+    }
 }
 
 function isProvided(value) {
@@ -439,7 +571,6 @@ export async function editarMaquina(id, patch) {
     if (isProvided(patch.seguro)) addSet("seguro", patch.seguro);
 
     if (isProvided(patch.num_poliza)) addSet("num_poliza", patch.num_poliza);
-    if (isProvided(patch.alquilada)) addSet("alquilada", patch.alquilada);
 
     if (columns.length === 0) {
         const existing = await pool.query(
@@ -530,7 +661,8 @@ export async function marcarEntregadaAtomic(idMaquina) {
         logistics_status = 'ENTREGADA',
         ubicacion_tipo = 'CLIENTE',
         ubicacion_ref_id = $2,
-        ubicacion = $3
+        ubicacion = $3,
+        transit_reason = NULL
       WHERE id_maquina = $1;
       `,
             [idMaquina, propuesta.id, ubicacionCliente]
@@ -564,7 +696,7 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
 
     const lockRes = await client.query(
       `
-      SELECT id_maquina, ubicacion_tipo, maintenance_status, availability_status
+      SELECT id_maquina, ubicacion_tipo, maintenance_status, availability_status, transit_reason
       FROM maquina
       WHERE id_maquina = $1
       FOR UPDATE;
@@ -575,90 +707,90 @@ export async function marcarRecibidaEnBaseTx(idMaquina, ubicacionTipo) {
     if (lockRes.rowCount === 0) {
       await client.query("ROLLBACK");
       result = { ok: false, reason: "NOT_FOUND", data: null };
+    } else {
+      const maquina = lockRes.rows[0];
+      const ubicacionActual = maquina.ubicacion_tipo;
+
+      if (ubicacionActual !== "TRANSITO") {
+        await client.query("ROLLBACK");
+        result = { ok: false, reason: "NOT_IN_TRANSITO", data: null };
       } else {
-        const maquina = lockRes.rows[0];
-        const ubicacionActual = maquina.ubicacion_tipo;
-        const reparacionTerminadaRes = await client.query(
-          `
-          SELECT 1
-          FROM reparacion
-          WHERE id_maquina = $1
-            AND estado = 'TERMINADA'
-          LIMIT 1
-          `,
-          [idMaquina]
-        );
+        const transitReason = String(maquina.transit_reason ?? '').trim().toUpperCase();
+        const alquilerFinalizado = transitReason === 'ALQUILER_FINALIZADO';
+        const reparacionTerminada = transitReason === 'REPARACION_TERMINADA';
 
-        if (ubicacionActual !== "TRANSITO") {
+        if (alquilerFinalizado) {
+          const ubicacionText = getUbicacionTextByTipo(ubicacionTipo);
+
+          const updateRes = await client.query(
+            `
+            UPDATE maquina
+            SET
+              ubicacion_tipo = $2,
+              ubicacion = $3,
+              ubicacion_ref_id = NULL,
+              logistics_status = NULL,
+              availability_status = 'DISPONIBLE',
+              transit_reason = NULL
+            WHERE id_maquina = $1
+            RETURNING *;
+            `,
+            [idMaquina, ubicacionTipo, ubicacionText]
+          );
+
+          await client.query("COMMIT");
+          result = { ok: true, reason: null, data: updateRes.rows[0] };
+        } else if (reparacionTerminada) {
           await client.query("ROLLBACK");
-          result = { ok: false, reason: "NOT_IN_TRANSITO", data: null };
+          result = { ok: false, reason: "REPAIR_RETURN_REQUIRES_CLIENT_DELIVERY", data: null };
         } else {
-        const averiadaGrave =
-          maquina.maintenance_status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
-        const vieneDeReparacionGrave = reparacionTerminadaRes.rowCount > 0;
+          const averiadaGrave =
+            maquina.maintenance_status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
 
-        if (!averiadaGrave && !vieneDeReparacionGrave) {
-          await client.query("ROLLBACK");
-          result = { ok: false, reason: "NOT_SEVERE_BREAKDOWN", data: null };
-        } else {
-        const albaranRes = await client.query(
-          `
-          SELECT a.estado
-          FROM reparacion r
-          JOIN albaran a
-            ON a.id_albaran = r.id_albaran
-          WHERE r.id_maquina = $1
-          ORDER BY r.id_reparacion DESC
-          LIMIT 1
-          `,
-          [idMaquina]
-        );
+          if (!averiadaGrave) {
+            await client.query("ROLLBACK");
+            result = { ok: false, reason: "NOT_SEVERE_BREAKDOWN", data: null };
+          } else {
+            const albaranRes = await client.query(
+              `
+              SELECT a.estado
+              FROM reparacion r
+              JOIN albaran a
+                ON a.id_albaran = r.id_albaran
+              WHERE r.id_maquina = $1
+              ORDER BY r.id_reparacion DESC
+              LIMIT 1
+              `,
+              [idMaquina]
+            );
 
-        const estadoAlbaran = albaranRes.rows[0]?.estado ?? null;
+            const estadoAlbaran = albaranRes.rows[0]?.estado ?? null;
 
-        if (estadoAlbaran !== "FIRMADO") {
-          await client.query("ROLLBACK");
-          result = { ok: false, reason: "ALBARAN_NOT_SIGNED", data: null };
-        } else {
-        const finalizadaRes = await client.query(
-          `
-          SELECT 1
-          FROM propuesta_alquiler
-          WHERE id_maquina = $1
-            AND estado = 'FINALIZADA'
-          LIMIT 1;
-          `,
-          [idMaquina]
-        );
+            if (estadoAlbaran !== "FIRMADO") {
+              await client.query("ROLLBACK");
+              result = { ok: false, reason: "ALBARAN_NOT_SIGNED", data: null };
+            } else {
+              const ubicacionText = getUbicacionTextByTipo(ubicacionTipo);
 
-        const alquilerFinalizado = finalizadaRes.rowCount > 0;
-        const debeQuedarDisponible =
-          alquilerFinalizado && !averiadaGrave;
+              const updateRes = await client.query(
+                `
+                UPDATE maquina
+                SET
+                  ubicacion_tipo = $2,
+                  ubicacion = $3,
+                  ubicacion_ref_id = NULL,
+                  logistics_status = NULL,
+                  transit_reason = NULL
+                WHERE id_maquina = $1
+                RETURNING *;
+                `,
+                [idMaquina, ubicacionTipo, ubicacionText]
+              );
 
-        const ubicacionText = getUbicacionTextByTipo(ubicacionTipo);
-
-        const updateRes = await client.query(
-          `
-          UPDATE maquina
-          SET
-            ubicacion_tipo = $2,
-            ubicacion = $3,
-            ubicacion_ref_id = NULL,
-            logistics_status = NULL,
-            availability_status = CASE
-              WHEN $4::boolean = true THEN 'DISPONIBLE'
-              ELSE availability_status
-            END
-          WHERE id_maquina = $1
-          RETURNING *;
-          `,
-          [idMaquina, ubicacionTipo, ubicacionText, debeQuedarDisponible]
-        );
-
-        await client.query("COMMIT");
-
-        result = { ok: true, reason: null, data: updateRes.rows[0] };
-        }
+              await client.query("COMMIT");
+              result = { ok: true, reason: null, data: updateRes.rows[0] };
+            }
+          }
         }
       }
     }
@@ -690,7 +822,11 @@ export async function marcarTransitoPorAlquilerTerminadoTx(options) {
           ON p.id_maquina = m.id_maquina
         WHERE p.estado = 'FINALIZADA'
           AND m.availability_status = 'ALQUILADA'
-          AND m.ubicacion_tipo <> 'TRANSITO'
+          AND (
+            m.ubicacion_tipo <> 'TRANSITO'
+            OR COALESCE(m.logistics_status, '') <> 'EN_CAMINO'
+            OR COALESCE(m.transit_reason, '') <> 'ALQUILER_FINALIZADO'
+          )
         ORDER BY m.id_maquina ASC
         LIMIT $1
       ),
@@ -698,7 +834,8 @@ export async function marcarTransitoPorAlquilerTerminadoTx(options) {
         UPDATE maquina m
         SET
           ubicacion_tipo = 'TRANSITO',
-          logistics_status = 'EN_CAMINO'
+          logistics_status = 'EN_CAMINO',
+          transit_reason = 'ALQUILER_FINALIZADO'
         FROM ended e
         WHERE m.id_maquina = e.id_maquina
         RETURNING m.id_maquina

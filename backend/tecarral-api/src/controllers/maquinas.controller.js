@@ -186,6 +186,35 @@ export async function suggestTipo(req, res) {
     res.json(suggestions);
 }
 
+export async function uploadMaquinaImage(req, res) {
+    try {
+        const idParam = req.params.id;
+
+        if (!validateId(idParam)) {
+            res.status(400).json({ error: "Id inválido" });
+            return;
+        }
+
+        const fileBuffer = Buffer.isBuffer(req.body) ? req.body : null;
+
+        if (!fileBuffer || fileBuffer.length === 0) {
+            res.status(400).json({ error: "No se ha recibido ninguna imagen" });
+            return;
+        }
+
+        const idMaquina = Number(idParam);
+        const updatedMachine = await maquinaService.uploadMachineImage(idMaquina, {
+            buffer: fileBuffer,
+            fileName: req.headers["x-file-name"],
+            mimeType: req.headers["content-type"],
+        });
+
+        res.status(200).json(updatedMachine);
+    } catch (e) {
+        res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
+    }
+}
+
 export async function suggestIdMaquina(req, res) {
     const text = req.query.text;
 
@@ -198,6 +227,7 @@ export async function suggestIdMaquina(req, res) {
 
 export async function crearMaquina(req, res) {
     try {
+        const body = req.body ?? {};
         const {
             subtipo,
             marca,
@@ -206,42 +236,77 @@ export async function crearMaquina(req, res) {
             ns,
             seguro,
             num_poliza,
-            alquilada,
             ubicacion,
             observaciones,
             tipo,
-            ubicacion_tipo
-
-        } = req.body;
+        } = body;
 
         let e = null;
 
-        const subtipoOk = validateSubtipoMaquina(subtipo);
-        const motorOk = validateMotorType(motor);
-        const tipoOk = validateTipoMaquina(tipo);
-        const ubicacion_tipoOk = validateUbicacionType(ubicacion_tipo);
+        const marcaTrim = String(marca ?? "").trim();
+        const modeloTrim = String(modelo ?? "").trim();
+        const nsTrim = String(ns ?? "").trim();
 
-        const ubicacionTipoCanon = canonicalUbicacionType(ubicacion_tipo);
-        const motorCanon = canonicalMotor(motor);
+        const subtipoOk = subtipo === undefined || subtipo === null || subtipo === ""
+          ? true
+          : validateSubtipoMaquina(subtipo);
+        const motorOk = motor === undefined || motor === null || motor === ""
+          ? true
+          : validateMotorType(motor);
+        const tipoOk = tipo === undefined || tipo === null || tipo === ""
+          ? true
+          : validateTipoMaquina(tipo);
 
-
-        if (!subtipoOk || !motorOk || !tipoOk || !ubicacion_tipoOk) {
-            e = "Tipo, subtipo, motor o tipo de ubicación inválido";
+        if (marcaTrim.length === 0 || modeloTrim.length === 0 || nsTrim.length === 0) {
+            e = "Marca, modelo y numero de serie son obligatorios";
+        } else if (!subtipoOk || !motorOk || !tipoOk) {
+            e = "Tipo, subtipo o motor inválido";
         } else {
-            const maquina = await maquinaService.crearMaquinaIntoDB(
-                subtipo,
-                marca,
-                motorCanon,
-                modelo,
-                ns,
-                seguro,
-                num_poliza,
-                alquilada,
-                ubicacion,
-                observaciones,
-                tipo,
-                ubicacionTipoCanon
-            );
+            const ubicacionTipoCanon = "TALLER";
+            const motorCanon = motor ? canonicalMotor(motor) : null;
+
+            const toNullableNumber = (value) => {
+                if (value === undefined || value === null || value === "") return null;
+                const numericValue = Number(value);
+                return Number.isFinite(numericValue) ? numericValue : null;
+            };
+
+            const toNullableBoolean = (value) => {
+                if (value === undefined || value === null || value === "") return null;
+                if (typeof value === "boolean") return value;
+                const normalized = String(value).trim().toLowerCase();
+                if (normalized === "true") return true;
+                if (normalized === "false") return false;
+                return null;
+            };
+
+            const maquina = await maquinaService.crearMaquinaIntoDB({
+                subtipo: subtipo ?? null,
+                marca: marcaTrim,
+                motor: motorCanon,
+                modelo: modeloTrim,
+                ns: nsTrim,
+                seguro: seguro ?? null,
+                num_poliza: num_poliza ?? null,
+                ubicacion: ubicacion ?? null,
+                observaciones: observaciones ?? null,
+                tipo: tipo ?? null,
+                ubicacion_tipo: ubicacionTipoCanon,
+                elev_ruedas: body.elev_ruedas ?? null,
+                elev_cap_carga: body.elev_cap_carga ?? null,
+                elev_replegado_mm: toNullableNumber(body.elev_replegado_mm),
+                elev_elevacion_libre: toNullableBoolean(body.elev_elevacion_libre),
+                elev_elevacion: body.elev_elevacion ?? null,
+                elev_desplazamiento: body.elev_desplazamiento ?? null,
+                elev_posicion: body.elev_posicion ?? null,
+                elev_antihuella: body.elev_antihuella ?? null,
+                elev_matricula: body.elev_matricula ?? null,
+                elev_largo: toNullableNumber(body.elev_largo),
+                elev_alto: toNullableNumber(body.elev_alto),
+                elev_ancho: toNullableNumber(body.elev_ancho),
+                elev_peso_kg: toNullableNumber(body.elev_peso_kg),
+                elev_horquillas: body.elev_horquillas ?? null,
+            });
 
             res.status(201).json(maquina);
         }
@@ -288,8 +353,6 @@ export async function editarMaquinariaById(req, res) {
 
         const seguroRaw = req.body.seguro;
         const numPolizaRaw = req.body.num_poliza;
-        const alquiladaRaw = req.body.alquilada;
-
         const subtipo = subtipoRaw === undefined ? undefined : String(subtipoRaw);
         const tipo = tipoRaw === undefined ? undefined : normalize(tipoRaw);
         const availability = availabilityRaw === undefined ? undefined : String(availabilityRaw);
@@ -307,7 +370,6 @@ export async function editarMaquinariaById(req, res) {
         const seguro = toBooleanOrUndefined(seguroRaw);
 
         const num_poliza = numPolizaRaw === undefined ? undefined : numPolizaRaw;
-        const alquilada = alquiladaRaw === undefined ? undefined : alquiladaRaw;
 
         let error = null;
 
@@ -358,8 +420,7 @@ export async function editarMaquinariaById(req, res) {
             observaciones,
 
             seguro,
-            num_poliza,
-            alquilada
+            num_poliza
         };
 
         const updated = await maquinaService.editarMaquinariaByIdFromDB(id, patch);
@@ -436,6 +497,11 @@ export async function marcarUbicacion(req, res, ubicacionTipo) {
           res.status(404).json({ error: "Máquina no encontrada" });
         } else if (result.reason === "NOT_IN_TRANSITO") {
           res.status(409).json({ error: "La máquina debe estar en TRANSITO para marcar TALLER/ALMACEN" });
+        } else if (result.reason === "REPAIR_RETURN_REQUIRES_CLIENT_DELIVERY") {
+          res.status(409).json({
+            error:
+              "La máquina está en tránsito por reparación terminada y debe entregarse al cliente",
+          });
         } else if (result.reason === "NOT_SEVERE_BREAKDOWN") {
           res.status(409).json({
             error:

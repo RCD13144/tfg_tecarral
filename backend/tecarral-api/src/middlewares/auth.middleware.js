@@ -46,12 +46,18 @@ export async function requireAuth(req, res, next) {
       return;
     }
 
+    if (user.is_active === false) {
+      res.status(401).json({ error: "Usuario dado de baja" });
+      return;
+    }
+
     req.user = {
       id_user: user.id_user,
       email: user.email,
       role: user.role,
       nombre: user.nombre,
       telefono: user.telefono,
+      is_active: user.is_active,
     };
 
     next();

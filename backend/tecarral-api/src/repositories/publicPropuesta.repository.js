@@ -121,7 +121,8 @@ export async function acceptAtomic(tokenHash) {
       SET
         availability_status = 'ALQUILADA',
         logistics_status = 'EN_CAMINO',
-        ubicacion_tipo = 'TRANSITO'
+        ubicacion_tipo = 'TRANSITO',
+        transit_reason = NULL
       WHERE id_maquina = $1;
       `,
       [propuesta.id_maquina]
@@ -227,7 +228,8 @@ export async function rejectAtomic(tokenHash) {
       UPDATE maquina
       SET
       availability_status = $2,
-      logistics_status = NULL
+      logistics_status = NULL,
+      transit_reason = NULL
       WHERE id_maquina = $1;
       `,
       [propuesta.id_maquina, nextStatus]

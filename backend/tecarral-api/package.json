@@ -12,7 +12,10 @@
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/integration",
     "test:migrate": "node tests/setup/runTestMigrations.js",
     "dev": "nodemon --legacy-watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "migrate": "node src/migrations/runMigrations.js",
+    "bootstrap:admin": "node src/scripts/bootstrapAdmin.js",
+    "import:machine-images": "node src/scripts/importMachineImages.js"
   },
   "keywords": [],
   "author": "",
