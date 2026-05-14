@@ -1,0 +1,2 @@
+ALTER TABLE public.maquina
+ADD COLUMN IF NOT EXISTS image_has_background BOOLEAN NOT NULL DEFAULT FALSE;

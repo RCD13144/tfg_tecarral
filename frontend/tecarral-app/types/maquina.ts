@@ -12,6 +12,7 @@ export interface Maquina {
   transit_reason?: 'REPARACION_TERMINADA' | 'ALQUILER_FINALIZADO' | null;
   image_path?: string | null;
   image_url?: string | null;
+  image_has_background?: boolean | null;
   [key: string]: unknown;
 }
 

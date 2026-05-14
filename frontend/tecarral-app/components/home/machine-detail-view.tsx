@@ -20,6 +20,7 @@ export function MachineDetailView({
   detailLoading,
   selectedMachineDetail,
   machineImageSource,
+  machineImageHasBackground,
   detailFeedback,
   detailSuccessFeedback,
   onBack,
@@ -86,6 +87,7 @@ export function MachineDetailView({
   detailLoading: boolean;
   selectedMachineDetail: MachineDetail | null;
   machineImageSource: unknown;
+  machineImageHasBackground: boolean;
   detailFeedback: string | null;
   detailSuccessFeedback: string | null;
   onBack: () => void;
@@ -185,9 +187,13 @@ export function MachineDetailView({
           <Ionicons color={AppColors.primary} name="close-circle-outline" size={28} />
         </Pressable>
         {machineImageSource ? (
-          <View style={homeStyles.detailImageFrame}>
+          machineImageHasBackground ? (
+            <View style={homeStyles.detailImageFrame}>
+              <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
+            </View>
+          ) : (
             <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
-          </View>
+          )
         ) : (
           <Ionicons color={AppColors.primary50} name="image-outline" size={42} />
         )}

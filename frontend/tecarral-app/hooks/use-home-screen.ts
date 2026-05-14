@@ -146,6 +146,11 @@ export function useHomeScreen(session: AuthSession | null) {
     [machineEditForm.image_uri, machineEditMode, selectedMachineDetail]
   );
 
+  const machineImageHasBackground = useMemo(
+    () => selectedMachineDetail?.image_has_background === true,
+    [selectedMachineDetail?.image_has_background]
+  );
+
   const locationOptions = useMemo(
     () => getLocationOptions(selectedMachineDetail, selectedMachineProposals),
     [selectedMachineDetail, selectedMachineProposals]
@@ -1314,6 +1319,7 @@ export function useHomeScreen(session: AuthSession | null) {
     availableNavigationApps,
     acceptedProposal,
     machineImageSource,
+    machineImageHasBackground,
     locationOptions,
     maintenanceOptions,
     canCreateProposal,

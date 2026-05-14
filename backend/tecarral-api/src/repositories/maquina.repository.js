@@ -71,7 +71,7 @@ export async function getAllMaquinaria() {
 export async function getMaquinaByIdForImageUpdate(idMaquina) {
     const result = await pool.query(
         `
-        SELECT id_maquina, image_path
+        SELECT id_maquina, image_path, image_has_background
         FROM maquina
         WHERE id_maquina = $1
         `,
@@ -81,15 +81,16 @@ export async function getMaquinaByIdForImageUpdate(idMaquina) {
     return result.rows[0] ?? null;
 }
 
-export async function updateMachineImagePath(idMaquina, imagePath) {
+export async function updateMachineImagePath(idMaquina, imagePath, imageHasBackground = false) {
     const result = await pool.query(
         `
         UPDATE maquina
-        SET image_path = $2
+        SET image_path = $2,
+            image_has_background = $3
         WHERE id_maquina = $1
         RETURNING *;
         `,
-        [idMaquina, imagePath]
+        [idMaquina, imagePath, imageHasBackground]
     );
 
     return result.rows[0] ?? null;
