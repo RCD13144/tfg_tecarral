@@ -92,3 +92,20 @@ export async function runMigrations() {
     await client.end();
   }
 }
+
+const executedAsScript = (() => {
+  const entrypoint = process.argv[1];
+
+  if (!entrypoint) {
+    return false;
+  }
+
+  return path.resolve(entrypoint) === fileURLToPath(import.meta.url);
+})();
+
+if (executedAsScript) {
+  runMigrations().catch((error) => {
+    console.error("Error ejecutando migraciones:", error.message);
+    process.exitCode = 1;
+  });
+}
