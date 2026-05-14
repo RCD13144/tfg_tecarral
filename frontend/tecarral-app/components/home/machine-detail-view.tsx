@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { FieldRow } from '@/components/home/field-row';
@@ -154,6 +155,8 @@ export function MachineDetailView({
   incidenceEscalationMode: boolean;
   onRequestScrollToFocusedInput?: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+
   if (detailLoading) {
     return (
       <View style={homeStyles.centeredBlock}>
@@ -182,8 +185,8 @@ export function MachineDetailView({
 
   return (
     <View style={homeStyles.detailContainer}>
-      <View style={homeStyles.detailHero}>
-        <Pressable onPress={onBack} style={homeStyles.detailCloseButton}>
+      <View style={[homeStyles.detailHero, { paddingTop: insets.top }]}>
+        <Pressable onPress={onBack} style={[homeStyles.detailCloseButton, { top: insets.top + 18 }]}>
           <Ionicons color={AppColors.primary} name="close-circle-outline" size={28} />
         </Pressable>
         {machineImageSource ? (
