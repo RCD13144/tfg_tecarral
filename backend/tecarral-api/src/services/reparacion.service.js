@@ -48,7 +48,9 @@ export async function asignarAveriaIntoDB(idReparacion, idUser) {
 
 export async function marcarReparacionTerminadaIntoDB(
   idReparacion,
-  solucionAplicada
+  solucionAplicada,
+  actorUserId,
+  actorRole
 ) {
   if (!Number.isInteger(idReparacion) || idReparacion <= 0) {
     const err = new Error("ID de reparación inválido");
@@ -56,9 +58,19 @@ export async function marcarReparacionTerminadaIntoDB(
     throw err;
   }
 
+  if (!Number.isInteger(actorUserId) || actorUserId <= 0) {
+    const err = new Error("Usuario no autenticado");
+    err.statusCode = 401;
+    throw err;
+  }
+
   const result = await marcarReparacionTerminadaTx(
     idReparacion,
-    solucionAplicada
+    solucionAplicada,
+    {
+      actorUserId,
+      actorRole,
+    }
   );
 
   return result;

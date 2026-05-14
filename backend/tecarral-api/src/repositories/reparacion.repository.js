@@ -98,7 +98,8 @@ export async function asignarAveriaTx({ idReparacion, idUserAsignado }) {
 
 export async function marcarReparacionTerminadaTx(
   idReparacion,
-  solucionAplicada
+  solucionAplicada,
+  actor
 ) {
   const client = await pool.connect();
 
@@ -125,6 +126,25 @@ export async function marcarReparacionTerminadaTx(
     }
 
     const reparacion = reparacionRes.rows[0];
+    const actorUserId = Number(actor?.actorUserId);
+
+    if (
+      Number.isInteger(actorUserId) &&
+      actorUserId > 0 &&
+      reparacion.id_user_asignado !== null &&
+      Number(reparacion.id_user_asignado) !== actorUserId
+    ) {
+      throw buildErr(
+        409,
+        "La reparación está asignada a otro usuario y no puedes terminarla",
+        {
+          idReparacion,
+          id_user_asignado: reparacion.id_user_asignado,
+          actor_user_id: actorUserId,
+        }
+      );
+    }
+
     const maquinaEstadoRes = await client.query(
       `
       SELECT maintenance_status, ubicacion_tipo
@@ -253,11 +273,15 @@ export async function marcarReparacionTerminadaTx(
       );
     }
 
-    if (
-      maintenanceStatus === MAINTENANCE_STATUS.AVERIADA &&
-      ubicacionTipoActual === "TRANSITO" &&
-      reparacion.id_albaran
-    ) {
+    const shouldReturnToClientInTransit =
+      isSevereRepair ||
+      (
+        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA &&
+        ubicacionTipoActual === "TRANSITO" &&
+        reparacion.id_albaran
+      );
+
+    if (shouldReturnToClientInTransit) {
       const propuestaRes = await client.query(
         `
         SELECT propuesta_alquiler_id
@@ -354,7 +378,9 @@ export async function findActiveRepairByMachineId(idMaquina) {
       a.estado AS albaran_estado,
       a.propuesta_alquiler_id,
       pr.id AS presupuesto_reparacion_id,
-      pr.estado AS presupuesto_estado
+      pr.estado AS presupuesto_estado,
+      pr.payer_type AS presupuesto_payer_type,
+      pr.charge_reason AS presupuesto_charge_reason
     FROM reparacion r
     LEFT JOIN albaran a
       ON a.id_albaran = r.id_albaran
@@ -407,6 +433,8 @@ export async function findActiveReparaciones({ userId = null, isAdmin = false })
       u.email AS assigned_user_email,
       pr.id AS presupuesto_reparacion_id,
       pr.estado AS presupuesto_estado,
+      pr.payer_type AS presupuesto_payer_type,
+      pr.charge_reason AS presupuesto_charge_reason,
       pr.importe_total,
       pr.expira_at
     FROM reparacion r

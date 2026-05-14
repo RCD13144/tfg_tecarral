@@ -130,7 +130,7 @@ export function useReparacionesScreen(session: AuthSession | null, visible: bool
 
     const userId = Number(selectedAssignees[repairId]);
     if (!Number.isInteger(userId) || userId <= 0) {
-      setFeedback('Selecciona un usuario valido para asignar la reparacion.');
+      setFeedback('Selecciona un usuario válido para asignar la reparación.');
       return;
     }
 
@@ -156,9 +156,9 @@ export function useReparacionesScreen(session: AuthSession | null, visible: bool
         )
       );
 
-      setSuccessMessage('Reparacion asignada correctamente.');
+      setSuccessMessage('Reparación asignada correctamente.');
     } catch (error) {
-      await handleApiError(error, setFeedback, 'No se pudo asignar la reparacion.');
+      await handleApiError(error, setFeedback, 'No se pudo asignar la reparación.');
     } finally {
       setSubmittingAssignmentRepairId(null);
     }
@@ -191,9 +191,9 @@ export function useReparacionesScreen(session: AuthSession | null, visible: bool
       });
       setOpenSelectorRepairId((current) => (current === repairId ? null : current));
 
-      setSuccessMessage('Reparacion terminada correctamente.');
+      setSuccessMessage('Reparación terminada correctamente.');
     } catch (error) {
-      await handleApiError(error, setFeedback, 'No se pudo terminar la reparacion.');
+      await handleApiError(error, setFeedback, 'No se pudo terminar la reparación.');
     } finally {
       setSubmittingFinishRepairId(null);
     }

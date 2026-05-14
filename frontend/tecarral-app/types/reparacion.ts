@@ -10,6 +10,8 @@ export interface ActiveRepairSummary {
   propuesta_alquiler_id: number | null;
   presupuesto_reparacion_id: number | null;
   presupuesto_estado: string | null;
+  presupuesto_payer_type: 'CLIENTE' | 'EMPRESA' | null;
+  presupuesto_charge_reason: 'GOLPE_ACCIDENTE' | null;
 }
 
 export interface RepairListItem extends ActiveRepairSummary {
@@ -43,4 +45,5 @@ export interface RepairBudgetFormData {
   importe_total: string;
   condiciones: string;
   expira_at: string;
+  payer_type: 'CLIENTE' | 'EMPRESA' | '';
 }

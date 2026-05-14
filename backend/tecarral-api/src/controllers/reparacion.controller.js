@@ -72,7 +72,9 @@ export async function marcarReparacionTerminada(req, res) {
     const result =
       await reparacionService.marcarReparacionTerminadaIntoDB(
         idReparacion,
-        bodyValidation.value.solucion_aplicada
+        bodyValidation.value.solucion_aplicada,
+        Number(req.user?.id_user),
+        req.user?.role
       );
 
     res.status(200).json(result);

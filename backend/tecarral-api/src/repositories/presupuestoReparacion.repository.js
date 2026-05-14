@@ -6,6 +6,11 @@ function createHttpError(statusCode, message) {
   return error;
 }
 
+function isValidEmail(value) {
+  const email = String(value ?? "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export async function crearPresupuestoReparacionTx(data) {
   const client = await pool.connect();
 
@@ -74,6 +79,13 @@ export async function crearPresupuestoReparacionTx(data) {
       );
     }
 
+    if (data.payer_type === "CLIENTE" && !isValidEmail(propuesta.email_cliente)) {
+      throw createHttpError(
+        409,
+        "La propuesta de alquiler no tiene un email_cliente válido"
+      );
+    }
+
     const presupuestoExistenteRes = await client.query(
       `
       SELECT 1
@@ -97,31 +109,38 @@ export async function crearPresupuestoReparacionTx(data) {
         reparacion_id,
         propuesta_alquiler_id,
         estado,
+        payer_type,
+        charge_reason,
         public_token,
         importe_total,
         condiciones,
-        expira_at
+        expira_at,
+        resolved_at
       )
-      VALUES ($1, $2, 'PENDING', $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
       `,
       [
         data.reparacion_id,
         data.propuesta_alquiler_id,
+        data.estado,
+        data.payer_type,
+        data.charge_reason,
         data.public_token,
         data.importe_total,
         data.condiciones,
         data.expira_at,
+        data.estado === "ACEPTADA" ? new Date().toISOString() : null,
       ]
     );
 
     await client.query(
       `
       UPDATE reparacion
-      SET estado = 'PENDIENTE_ACEPTACION'
+      SET estado = $2
       WHERE id_reparacion = $1;
       `,
-      [data.reparacion_id]
+      [data.reparacion_id, data.reparacion_estado]
     );
 
     await client.query("COMMIT");
@@ -200,6 +219,7 @@ export async function findByPublicTokenHash(publicTokenHash) {
     JOIN maquina m
       ON m.id_maquina = p.id_maquina
     WHERE pr.public_token = $1
+      AND pr.payer_type = 'CLIENTE'
     LIMIT 1;
     `,
     [publicTokenHash]

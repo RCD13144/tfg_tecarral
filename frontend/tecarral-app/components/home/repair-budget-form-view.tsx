@@ -17,6 +17,7 @@ export function RepairBudgetFormView({
   repairBudgetSubmitting,
   onBack,
   onChangeField,
+  onRequestScrollToFocusedInput,
   onSubmit,
 }: {
   selectedMachineDetail: MachineDetail | null;
@@ -29,6 +30,7 @@ export function RepairBudgetFormView({
     key: K,
     value: RepairBudgetFormData[K]
   ) => void;
+  onRequestScrollToFocusedInput?: () => void;
   onSubmit: () => void;
 }) {
   if (!selectedMachineDetail?.active_repair) {
@@ -40,6 +42,13 @@ export function RepairBudgetFormView({
   }
 
   const activeRepair = selectedMachineDetail.active_repair;
+  const payerTypeOptions = [
+    { label: 'Empresa', value: 'EMPRESA' },
+    { label: 'Cliente', value: 'CLIENTE' },
+  ] as const;
+  const payerTypeValueLabel =
+    payerTypeOptions.find((option) => option.value === repairBudgetForm.payer_type)?.label ??
+    'Selecciona quién paga';
 
   return (
     <View style={homeStyles.detailContainer}>
@@ -56,7 +65,10 @@ export function RepairBudgetFormView({
         <FieldRow label="ID máquina" value={selectedMachineDetail.id_maquina} />
         <FieldRow label="Marca" value={selectedMachineDetail.marca} />
         <FieldRow label="Modelo" value={selectedMachineDetail.modelo} />
-        <FieldRow label="Ubicación" value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)} />
+        <FieldRow
+          label="Ubicación"
+          value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)}
+        />
         <FieldRow label="Reparación ID" value={activeRepair.id_reparacion} />
         <FieldRow label="Propuesta alquiler ID" value={activeRepair.propuesta_alquiler_id} />
         <FieldRow label="Estado reparación" value={activeRepair.estado} />
@@ -67,9 +79,41 @@ export function RepairBudgetFormView({
         <Text style={homeStyles.feedbackText}>{repairBudgetFeedback}</Text>
       ) : null}
 
+      <Text style={homeStyles.formFieldLabel}>La reparación la paga</Text>
+      <View style={homeStyles.inlineActionRow}>
+        {payerTypeOptions.map((option) => {
+          const selected = repairBudgetForm.payer_type === option.value;
+
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChangeField('payer_type', option.value)}
+              style={[
+                homeStyles.inlineActionButton,
+                selected && homeStyles.filterChipActive,
+              ]}>
+              <Text
+                style={[
+                  homeStyles.inlineActionButtonText,
+                  selected && homeStyles.filterChipTextActive,
+                ]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={homeStyles.sectionHint}>
+        {repairBudgetForm.payer_type === 'CLIENTE'
+          ? 'Se enviará al email de la propuesta de alquiler y quedará pendiente de aceptación.'
+          : 'Se enviará al email interno centralizado y quedará autoaceptado.'}
+      </Text>
+
       <TextInput
         keyboardType="numeric"
         onChangeText={(value) => onChangeField('importe_total', value)}
+        onFocus={onRequestScrollToFocusedInput}
         placeholder="Importe total"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
@@ -78,6 +122,7 @@ export function RepairBudgetFormView({
       <TextInput
         multiline
         onChangeText={(value) => onChangeField('condiciones', value)}
+        onFocus={onRequestScrollToFocusedInput}
         placeholder="Condiciones"
         placeholderTextColor={AppColors.primary50}
         style={[homeStyles.formInput, homeStyles.incidenceInput]}

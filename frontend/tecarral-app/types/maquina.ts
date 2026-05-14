@@ -107,6 +107,20 @@ export interface MachineEditFormData {
   num_poliza: string;
   observaciones: string;
   seguro: 'true' | 'false';
+  elev_ruedas: string;
+  elev_cap_carga: string;
+  elev_replegado_mm: string;
+  elev_elevacion_libre: 'true' | 'false' | '';
+  elev_elevacion: string;
+  elev_desplazamiento: string;
+  elev_posicion: string;
+  elev_antihuella: 'true' | 'false' | '';
+  elev_matricula: string;
+  elev_largo: string;
+  elev_alto: string;
+  elev_ancho: string;
+  elev_peso_kg: string;
+  elev_horquillas: string;
 }
 
 export interface MachineCreateFormData {

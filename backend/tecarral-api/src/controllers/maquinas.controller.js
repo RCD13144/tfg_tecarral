@@ -326,6 +326,12 @@ function toBooleanOrUndefined(value) {
     return undefined;
 }
 
+function toNumberOrUndefined(value) {
+    if (value === undefined || value === null || value === "") return undefined;
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : undefined;
+}
+
 export async function editarMaquinariaById(req, res) {
     try {
         const idParam = req.params.id;
@@ -370,6 +376,8 @@ export async function editarMaquinariaById(req, res) {
         const seguro = toBooleanOrUndefined(seguroRaw);
 
         const num_poliza = numPolizaRaw === undefined ? undefined : numPolizaRaw;
+        const elev_elevacion_libre = toBooleanOrUndefined(req.body.elev_elevacion_libre);
+        const elev_antihuella = toBooleanOrUndefined(req.body.elev_antihuella);
 
         let error = null;
 
@@ -397,6 +405,14 @@ export async function editarMaquinariaById(req, res) {
             error = "Seguro inválido (usa true/false)";
         }
 
+        if (error === null && req.body.elev_elevacion_libre !== undefined && elev_elevacion_libre === undefined) {
+            error = "Elevación libre inválida (usa true/false)";
+        }
+
+        if (error === null && req.body.elev_antihuella !== undefined && elev_antihuella === undefined) {
+            error = "Antihuella inválida (usa true/false)";
+        }
+
         if (error !== null) {
             res.status(400).json({ error });
             return;
@@ -420,7 +436,21 @@ export async function editarMaquinariaById(req, res) {
             observaciones,
 
             seguro,
-            num_poliza
+            num_poliza,
+            elev_ruedas: req.body.elev_ruedas === undefined ? undefined : String(req.body.elev_ruedas).trim(),
+            elev_cap_carga: req.body.elev_cap_carga === undefined ? undefined : String(req.body.elev_cap_carga).trim(),
+            elev_replegado_mm: toNumberOrUndefined(req.body.elev_replegado_mm),
+            elev_elevacion_libre,
+            elev_elevacion: req.body.elev_elevacion === undefined ? undefined : String(req.body.elev_elevacion).trim(),
+            elev_desplazamiento: req.body.elev_desplazamiento === undefined ? undefined : String(req.body.elev_desplazamiento).trim(),
+            elev_posicion: req.body.elev_posicion === undefined ? undefined : String(req.body.elev_posicion).trim(),
+            elev_antihuella,
+            elev_matricula: req.body.elev_matricula === undefined ? undefined : String(req.body.elev_matricula).trim(),
+            elev_largo: toNumberOrUndefined(req.body.elev_largo),
+            elev_alto: toNumberOrUndefined(req.body.elev_alto),
+            elev_ancho: toNumberOrUndefined(req.body.elev_ancho),
+            elev_peso_kg: toNumberOrUndefined(req.body.elev_peso_kg),
+            elev_horquillas: req.body.elev_horquillas === undefined ? undefined : String(req.body.elev_horquillas).trim(),
         };
 
         const updated = await maquinaService.editarMaquinariaByIdFromDB(id, patch);

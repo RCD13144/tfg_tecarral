@@ -25,7 +25,7 @@ export function formatMachineName(machine: Maquina) {
   if (subtipo.length > 0) return subtipo;
   if (tipo.length > 0) return tipo;
 
-  return `Maquina ${machine.id_maquina}`;
+  return `Máquina ${machine.id_maquina}`;
 }
 
 export function getMachineImageSource(machine: Pick<Maquina, 'modelo' | 'image_url'>) {

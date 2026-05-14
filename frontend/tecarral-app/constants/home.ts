@@ -33,7 +33,7 @@ export const FILTER_DEFINITIONS: {
     key: 'tipo',
     label: 'Tipo',
     options: [
-      { label: 'Elevacion', value: 'elevacion' },
+      { label: 'Elevación', value: 'elevacion' },
       { label: 'Limpieza', value: 'limpieza' },
     ],
   },
@@ -42,15 +42,15 @@ export const FILTER_DEFINITIONS: {
     label: 'Subtipo',
     options: [
       { label: 'Carretillas elevadoras', value: 'Carretilla elevad.' },
-      { label: 'Retractiles', value: 'Retractil' },
+      { label: 'Retráctiles', value: 'Retractil' },
       { label: 'Plataformas de tijera', value: 'Plataforma tijera' },
       { label: 'Barredoras', value: 'Barredora' },
       { label: 'Plataformas articuladas', value: 'Plataforma artic.' },
       { label: 'Fregadoras', value: 'Fregadora' },
-      { label: 'Transpaletas electricas', value: 'Transpaleta electrica' },
+      { label: 'Transpaletas eléctricas', value: 'Transpaleta electrica' },
       { label: 'Preparapedidos', value: 'Preparapedidos' },
       { label: 'Transpaletas manuales', value: 'Transpaleta manual' },
-      { label: 'Criogenas', value: 'Criogena' },
+      { label: 'Criógenas', value: 'Criogena' },
       { label: 'Limpia-moquetas', value: 'Limpiamoquetas' },
       { label: 'Hidrolimpiadoras', value: 'Hidrolimpiadora' },
       { label: 'Apiladores', value: 'Apilador' },
@@ -61,22 +61,22 @@ export const FILTER_DEFINITIONS: {
   },
   {
     key: 'motor',
-    label: 'Combustion',
+    label: 'Combustión',
     options: [
       { label: 'Diesel', value: 'diesel' },
-      { label: 'Electricas', value: 'electrica' },
-      { label: 'Semi electricas', value: 'semi electrica' },
+      { label: 'Eléctricas', value: 'electrica' },
+      { label: 'Semieléctricas', value: 'semi electrica' },
       { label: 'Manuales', value: 'manual' },
     ],
   },
   {
     key: 'ubicacion_type',
-    label: 'Ubicacion',
+    label: 'Ubicación',
     options: [
       { label: 'Taller', value: 'TALLER' },
       { label: 'Cliente', value: 'CLIENTE' },
-      { label: 'Almacen', value: 'ALMACEN' },
-      { label: 'Transito', value: 'TRANSITO' },
+      { label: 'Almacén', value: 'ALMACEN' },
+      { label: 'Tránsito', value: 'TRANSITO' },
     ],
   },
 ];
@@ -105,6 +105,7 @@ export const EMPTY_REPAIR_BUDGET_FORM: RepairBudgetFormData = {
   importe_total: '',
   condiciones: '',
   expira_at: '',
+  payer_type: 'EMPRESA',
 };
 
 export const EMPTY_MACHINE_EDIT_FORM: MachineEditFormData = {
@@ -118,6 +119,20 @@ export const EMPTY_MACHINE_EDIT_FORM: MachineEditFormData = {
   num_poliza: '',
   observaciones: '',
   seguro: 'false',
+  elev_ruedas: '',
+  elev_cap_carga: '',
+  elev_replegado_mm: '',
+  elev_elevacion_libre: '',
+  elev_elevacion: '',
+  elev_desplazamiento: '',
+  elev_posicion: '',
+  elev_antihuella: '',
+  elev_matricula: '',
+  elev_largo: '',
+  elev_alto: '',
+  elev_ancho: '',
+  elev_peso_kg: '',
+  elev_horquillas: '',
 };
 
 export const EMPTY_MACHINE_CREATE_FORM: MachineCreateFormData = {
@@ -166,23 +181,23 @@ export const WEEKDAY_NAMES = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 export const COMMON_DETAIL_FIELDS: { label: string; key: keyof MachineDetail }[] = [
   { label: 'Marca', key: 'marca' },
   { label: 'Modelo', key: 'modelo' },
-  { label: 'Direccion', key: 'ubicacion' },
+  { label: 'Dirección', key: 'ubicacion' },
   { label: 'Disponibilidad', key: 'availability_status' },
   { label: 'Tipo', key: 'tipo_maquina' },
-  { label: 'No de serie', key: 'ns' },
-  { label: 'No Poliza', key: 'num_poliza' },
+  { label: 'N.º de serie', key: 'ns' },
+  { label: 'N.º póliza', key: 'num_poliza' },
 ];
 
 export const ELEVATION_DETAIL_FIELDS: { label: string; key: keyof MachineDetail }[] = [
   { label: 'Ruedas', key: 'elev_ruedas' },
   { label: 'Capacidad de carga (Kg)', key: 'elev_cap_carga' },
   { label: 'Replegado (cm)', key: 'elev_replegado_mm' },
-  { label: 'Elevacion libre', key: 'elev_elevacion_libre' },
-  { label: 'Elevacion (cm)', key: 'elev_elevacion' },
+  { label: 'Elevación libre', key: 'elev_elevacion_libre' },
+  { label: 'Elevación (cm)', key: 'elev_elevacion' },
   { label: 'Desplazamiento', key: 'elev_desplazamiento' },
-  { label: 'Posicion', key: 'elev_posicion' },
+  { label: 'Posición', key: 'elev_posicion' },
   { label: 'Antihuella', key: 'elev_antihuella' },
-  { label: 'Matricula', key: 'elev_matricula' },
+  { label: 'Matrícula', key: 'elev_matricula' },
   { label: 'Largo (cm)', key: 'elev_largo' },
   { label: 'Alto (cm)', key: 'elev_alto' },
   { label: 'Ancho (cm)', key: 'elev_ancho' },
