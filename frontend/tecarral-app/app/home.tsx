@@ -88,6 +88,7 @@ export default function HomeScreen() {
 
   const scrollBottomPadding =
     home.filterPanelOpen && home.homeSubview === 'list' ? 300 : 126;
+  const detailScreenOpen = home.activeTab === 'home' && home.homeSubview === 'detail';
 
   function scrollFocusedInputIntoView() {
     requestAnimationFrame(() => {
@@ -411,7 +412,13 @@ export default function HomeScreen() {
         <ScrollView
           ref={scrollViewRef}
           automaticallyAdjustKeyboardInsets
-          contentContainerStyle={[homeStyles.scrollContent, { paddingBottom: scrollBottomPadding }]}
+          contentContainerStyle={[
+            homeStyles.scrollContent,
+            {
+              paddingTop: detailScreenOpen ? 0 : 28,
+              paddingBottom: scrollBottomPadding,
+            },
+          ]}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           onScroll={(event) => {
