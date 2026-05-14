@@ -101,6 +101,8 @@ export function useHomeScreen(session: AuthSession | null) {
   const [machineEditTipoOpen, setMachineEditTipoOpen] = useState(false);
   const [machineEditMotorOpen, setMachineEditMotorOpen] = useState(false);
   const [machineEditSeguroOpen, setMachineEditSeguroOpen] = useState(false);
+  const [machineEditElevationLibreOpen, setMachineEditElevationLibreOpen] = useState(false);
+  const [machineEditAntihuellaOpen, setMachineEditAntihuellaOpen] = useState(false);
   const [machineCreateForm, setMachineCreateForm] =
     useState<MachineCreateFormData>(EMPTY_MACHINE_CREATE_FORM);
   const [machineCreateFeedback, setMachineCreateFeedback] = useState<string | null>(null);
@@ -201,6 +203,17 @@ export function useHomeScreen(session: AuthSession | null) {
   ] as const;
   const machineBooleanOptions = machineSeguroOptions;
 
+  function toBooleanSelectorValue(value: unknown): 'true' | 'false' | '' {
+    if (value === true) return 'true';
+    if (value === false) return 'false';
+
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'true') return 'true';
+    if (normalized === 'false') return 'false';
+
+    return '';
+  }
+
   async function pickMachineImage(source: 'camera' | 'library', target: 'create' | 'edit' = 'create') {
     const requestPermission =
       source === 'camera'
@@ -211,8 +224,8 @@ export function useHomeScreen(session: AuthSession | null) {
     if (!permission.granted) {
       const feedbackMessage =
         source === 'camera'
-          ? 'Necesitas permisos de camara para hacer una foto.'
-          : 'Necesitas permisos de galeria para adjuntar una foto.';
+          ? 'Necesitas permisos de cámara para hacer una foto.'
+          : 'Necesitas permisos de galería para adjuntar una foto.';
 
       if (target === 'edit') {
         setMachineEditFeedback(feedbackMessage);
@@ -274,6 +287,20 @@ export function useHomeScreen(session: AuthSession | null) {
       num_poliza: String(detail.num_poliza ?? ''),
       observaciones: String(detail.observaciones ?? ''),
       seguro: detail.seguro === true ? 'true' : 'false',
+      elev_ruedas: String(detail.elev_ruedas ?? ''),
+      elev_cap_carga: String(detail.elev_cap_carga ?? ''),
+      elev_replegado_mm: String(detail.elev_replegado_mm ?? ''),
+      elev_elevacion_libre: toBooleanSelectorValue(detail.elev_elevacion_libre),
+      elev_elevacion: String(detail.elev_elevacion ?? ''),
+      elev_desplazamiento: String(detail.elev_desplazamiento ?? ''),
+      elev_posicion: String(detail.elev_posicion ?? ''),
+      elev_antihuella: toBooleanSelectorValue(detail.elev_antihuella),
+      elev_matricula: String(detail.elev_matricula ?? ''),
+      elev_largo: String(detail.elev_largo ?? ''),
+      elev_alto: String(detail.elev_alto ?? ''),
+      elev_ancho: String(detail.elev_ancho ?? ''),
+      elev_peso_kg: String(detail.elev_peso_kg ?? ''),
+      elev_horquillas: String(detail.elev_horquillas ?? ''),
     };
   }
 
@@ -493,13 +520,15 @@ export function useHomeScreen(session: AuthSession | null) {
       setMachineEditTipoOpen(false);
       setMachineEditMotorOpen(false);
       setMachineEditSeguroOpen(false);
+      setMachineEditElevationLibreOpen(false);
+      setMachineEditAntihuellaOpen(false);
       setSelectedTargetLocation(String(detail.ubicacion_tipo ?? '').trim().toUpperCase());
       resetPendingIncidenceSelection(
         String(detail.maintenance_status ?? '').trim().toUpperCase()
       );
       setProposalsExpanded(false);
     } catch (error) {
-      await handleApiError(error, setDetailFeedback, 'No se pudo cargar el detalle de la maquina.');
+      await handleApiError(error, setDetailFeedback, 'No se pudo cargar el detalle de la máquina.');
     } finally {
       if (!options?.silent) {
         setDetailLoading(false);
@@ -522,6 +551,8 @@ export function useHomeScreen(session: AuthSession | null) {
     setMachineEditTipoOpen(false);
     setMachineEditMotorOpen(false);
     setMachineEditSeguroOpen(false);
+    setMachineEditElevationLibreOpen(false);
+    setMachineEditAntihuellaOpen(false);
     setMachineCreateFeedback(null);
     setMachineCreateTipoOpen(false);
     setMachineCreateMotorOpen(false);
@@ -638,6 +669,8 @@ export function useHomeScreen(session: AuthSession | null) {
     setMachineEditForm(buildMachineEditForm(selectedMachineDetail));
     setMachineEditFeedback(null);
     setMachineEditMode(true);
+    setMachineEditElevationLibreOpen(false);
+    setMachineEditAntihuellaOpen(false);
   }
 
   function handleCancelMachineEdit() {
@@ -650,13 +683,15 @@ export function useHomeScreen(session: AuthSession | null) {
     setMachineEditTipoOpen(false);
     setMachineEditMotorOpen(false);
     setMachineEditSeguroOpen(false);
+    setMachineEditElevationLibreOpen(false);
+    setMachineEditAntihuellaOpen(false);
   }
 
   function validateProposalForm() {
     if (!proposalForm.cliente.trim()) return 'Introduce el cliente.';
     if (!proposalForm.email_cliente.trim()) return 'Introduce el email del cliente.';
     if (!proposalForm.telefono.trim()) return 'Introduce el telefono del cliente.';
-    if (!proposalForm.direccion.trim()) return 'Introduce la direccion.';
+    if (!proposalForm.direccion.trim()) return 'Introduce la dirección.';
     if (!proposalForm.cp.trim()) return 'Introduce el codigo postal.';
     if (!proposalForm.poblacion.trim()) return 'Introduce la poblacion.';
     if (!proposalForm.precio.trim() || Number(proposalForm.precio) <= 0) {
@@ -696,6 +731,10 @@ export function useHomeScreen(session: AuthSession | null) {
       return 'Introduce un importe total válido.';
     }
 
+    if (repairBudgetForm.payer_type !== 'CLIENTE' && repairBudgetForm.payer_type !== 'EMPRESA') {
+      return 'Selecciona quién paga la reparación.';
+    }
+
     if (!repairBudgetForm.expira_at.trim() || !repairBudgetForm.expira_at.includes('T')) {
       return 'expira_at debe ir en formato ISO, por ejemplo 2026-05-20T10:00:00.';
     }
@@ -716,8 +755,8 @@ export function useHomeScreen(session: AuthSession | null) {
   function validateMachineEditForm() {
     if (!machineEditForm.marca.trim()) return 'Introduce la marca.';
     if (!machineEditForm.modelo.trim()) return 'Introduce el modelo.';
-    if (!machineEditForm.ubicacion.trim()) return 'Introduce la direccion.';
-    if (!machineEditForm.ns.trim()) return 'Introduce el numero de serie.';
+    if (!machineEditForm.ubicacion.trim()) return 'Introduce la dirección.';
+    if (!machineEditForm.ns.trim()) return 'Introduce el número de serie.';
 
     return null;
   }
@@ -725,7 +764,7 @@ export function useHomeScreen(session: AuthSession | null) {
   function validateMachineCreateForm() {
     if (!machineCreateForm.marca.trim()) return 'Introduce la marca.';
     if (!machineCreateForm.modelo.trim()) return 'Introduce el modelo.';
-    if (!machineCreateForm.ns.trim()) return 'Introduce el numero de serie.';
+    if (!machineCreateForm.ns.trim()) return 'Introduce el número de serie.';
     return null;
   }
 
@@ -780,6 +819,7 @@ export function useHomeScreen(session: AuthSession | null) {
     try {
       setRepairBudgetSubmitting(true);
       setRepairBudgetFeedback(null);
+      const payerType = repairBudgetForm.payer_type === 'CLIENTE' ? 'CLIENTE' : 'EMPRESA';
 
       const response = await createRepairBudget(
         {
@@ -788,6 +828,8 @@ export function useHomeScreen(session: AuthSession | null) {
           importe_total: Number(repairBudgetForm.importe_total),
           condiciones: repairBudgetForm.condiciones.trim() || null,
           expira_at: repairBudgetForm.expira_at,
+          payer_type: payerType,
+          charge_reason: payerType === 'CLIENTE' ? 'GOLPE_ACCIDENTE' : null,
         },
         session.token
       );
@@ -796,14 +838,22 @@ export function useHomeScreen(session: AuthSession | null) {
         ...current,
         presupuesto_reparacion_id: response.id,
         presupuesto_estado: response.estado,
+        presupuesto_payer_type: response.payer_type,
+        presupuesto_charge_reason: response.charge_reason,
       }));
       setHomeSubview('detail');
+
+      const repairBudgetSuccessMessage =
+        response.payer_type === 'EMPRESA'
+          ? `Presupuesto interno creado y enviado a ${response.email_recipient ?? 'la dirección interna configurada'}.`
+          : `Presupuesto de reparación enviado a ${response.email_recipient ?? 'la dirección del cliente'}.`;
 
       if (response.email_sent === false) {
         setDetailFeedback('Presupuesto creado, pero no se pudo enviar el email.');
       } else {
         setDetailFeedback(null);
         showTemporaryDetailSuccess('Presupuesto de reparación creado correctamente.');
+        showTemporaryDetailSuccess(repairBudgetSuccessMessage);
       }
       void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
@@ -853,6 +903,8 @@ export function useHomeScreen(session: AuthSession | null) {
       setMachineEditTipoOpen(false);
       setMachineEditMotorOpen(false);
       setMachineEditSeguroOpen(false);
+      setMachineEditElevationLibreOpen(false);
+      setMachineEditAntihuellaOpen(false);
       showTemporaryDetailSuccess(
         uploadedMachine || !machineEditForm.image_uri.trim()
           ? 'Maquinaria actualizada correctamente.'
@@ -863,7 +915,7 @@ export function useHomeScreen(session: AuthSession | null) {
       await handleApiError(
         error,
         setMachineEditFeedback,
-        'No se pudo guardar la informacion de la maquinaria.'
+        'No se pudo guardar la información de la maquinaria.'
       );
     } finally {
       setMachineEditSubmitting(false);
@@ -901,11 +953,11 @@ export function useHomeScreen(session: AuthSession | null) {
       setHomeSubview('list');
       showTemporaryDetailSuccess(
         uploadedMachine || !machineCreateForm.image_uri.trim()
-          ? 'Maquina creada correctamente.'
-          : 'Maquina creada, pero no se pudo subir la imagen.'
+          ? 'Máquina creada correctamente.'
+          : 'Máquina creada, pero no se pudo subir la imagen.'
       );
     } catch (error) {
-      await handleApiError(error, setMachineCreateFeedback, 'No se pudo crear la maquina.');
+      await handleApiError(error, setMachineCreateFeedback, 'No se pudo crear la máquina.');
     } finally {
       setMachineCreateSubmitting(false);
     }
@@ -966,7 +1018,7 @@ export function useHomeScreen(session: AuthSession | null) {
       setSelectedTargetLocation(nextLocation);
       void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
-      await handleApiError(error, setDetailFeedback, 'No se pudo actualizar la ubicacion.');
+      await handleApiError(error, setDetailFeedback, 'No se pudo actualizar la ubicación.');
       setSelectedTargetLocation(currentLocation);
       await loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } finally {
@@ -1162,7 +1214,7 @@ export function useHomeScreen(session: AuthSession | null) {
     }
 
     if (available.length === 0) {
-      setDetailFeedback('No hay una app de navegacion disponible para abrir esta direccion.');
+      setDetailFeedback('No hay una app de navegación disponible para abrir esta dirección.');
       return;
     }
 
@@ -1175,7 +1227,7 @@ export function useHomeScreen(session: AuthSession | null) {
       await Linking.openURL(url);
       setNavigationModalOpen(false);
     } catch {
-      setDetailFeedback('No se pudo abrir la aplicacion de navegacion.');
+      setDetailFeedback('No se pudo abrir la aplicación de navegación.');
     }
   }
 
@@ -1248,6 +1300,8 @@ export function useHomeScreen(session: AuthSession | null) {
     machineEditTipoOpen,
     machineEditMotorOpen,
     machineEditSeguroOpen,
+    machineEditElevationLibreOpen,
+    machineEditAntihuellaOpen,
     machineTipoOptions,
     machineMotorOptions,
     machineSeguroOptions,
@@ -1303,6 +1357,8 @@ export function useHomeScreen(session: AuthSession | null) {
     setMachineEditTipoOpen,
     setMachineEditMotorOpen,
     setMachineEditSeguroOpen,
+    setMachineEditElevationLibreOpen,
+    setMachineEditAntihuellaOpen,
     setMachineCreateTipoOpen,
     setMachineCreateMotorOpen,
     setMachineCreateSeguroOpen,

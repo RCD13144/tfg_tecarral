@@ -11,6 +11,7 @@ export function RepairListView({
   feedback,
   successMessage,
   isAdmin,
+  currentUserId,
   userOptions,
   openSelectorRepairId,
   selectedAssignees,
@@ -23,12 +24,14 @@ export function RepairListView({
   onSubmitAssignment,
   onSubmitFinish,
   onOpenHelp,
+  onRequestScrollToFocusedInput,
 }: {
   repairs: RepairListItem[];
   loading: boolean;
   feedback: string | null;
   successMessage: string | null;
   isAdmin: boolean;
+  currentUserId: number | null;
   userOptions: { label: string; value: string }[];
   openSelectorRepairId: number | null;
   selectedAssignees: Record<number, string>;
@@ -41,6 +44,7 @@ export function RepairListView({
   onSubmitAssignment: (repairId: number) => void;
   onSubmitFinish: (repairId: number) => void;
   onOpenHelp: () => void;
+  onRequestScrollToFocusedInput?: () => void;
 }) {
   return (
     <View style={reparacionesStyles.container}>
@@ -67,10 +71,12 @@ export function RepairListView({
       <View style={reparacionesStyles.listBlock}>
         {repairs.map((item) => (
           <RepairCard
+            currentUserId={currentUserId}
             isAdmin={isAdmin}
             item={item}
             key={item.id_reparacion}
             onChangeSolutionText={(value) => onChangeSolutionText(item.id_reparacion, value)}
+            onRequestScrollToFocusedInput={onRequestScrollToFocusedInput}
             onSelectAssignee={(value) => onSelectAssignee(item.id_reparacion, value)}
             onSubmitAssignment={() => onSubmitAssignment(item.id_reparacion)}
             onSubmitFinish={() => onSubmitFinish(item.id_reparacion)}

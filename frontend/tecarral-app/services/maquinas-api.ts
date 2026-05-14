@@ -69,6 +69,22 @@ export function updateMachineDetail(
       num_poliza: data.num_poliza.trim(),
       observaciones: data.observaciones.trim(),
       seguro: data.seguro === 'true',
+      elev_ruedas: data.elev_ruedas.trim() || undefined,
+      elev_cap_carga: data.elev_cap_carga.trim() || undefined,
+      elev_replegado_mm: data.elev_replegado_mm.trim() || undefined,
+      elev_elevacion_libre:
+        data.elev_elevacion_libre === '' ? undefined : data.elev_elevacion_libre === 'true',
+      elev_elevacion: data.elev_elevacion.trim() || undefined,
+      elev_desplazamiento: data.elev_desplazamiento.trim() || undefined,
+      elev_posicion: data.elev_posicion.trim() || undefined,
+      elev_antihuella:
+        data.elev_antihuella === '' ? undefined : data.elev_antihuella === 'true',
+      elev_matricula: data.elev_matricula.trim() || undefined,
+      elev_largo: data.elev_largo.trim() || undefined,
+      elev_alto: data.elev_alto.trim() || undefined,
+      elev_ancho: data.elev_ancho.trim() || undefined,
+      elev_peso_kg: data.elev_peso_kg.trim() || undefined,
+      elev_horquillas: data.elev_horquillas.trim() || undefined,
     },
   });
 }

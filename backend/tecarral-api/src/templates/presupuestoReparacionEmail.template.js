@@ -83,3 +83,53 @@ export function buildPresupuestoReparacionEmailText(data) {
     url,
   ].join("\n");
 }
+
+export function buildPresupuestoReparacionInternalEmailHtml(data) {
+  const cliente = escapeHtml(data.cliente ?? "No disponible");
+  const importe = escapeHtml(formatMoneyES(data.importeTotal));
+  const condiciones = escapeHtml(data.condiciones ?? "No disponible");
+  const expiraAt = escapeHtml(formatDateES(data.expiraAt));
+  const maquinaId = escapeHtml(data.maquinaId);
+  const reparacionId = escapeHtml(data.reparacionId);
+
+  return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Presupuesto interno de reparación</title>
+</head>
+<body style="font-family: system-ui, Arial; max-width: 720px; margin: 0 auto; padding: 24px;">
+  <h2>Presupuesto interno de reparación</h2>
+  <p>Se ha registrado un presupuesto interno asumido por la empresa.</p>
+  <ul>
+    <li><strong>Reparación:</strong> #${reparacionId}</li>
+    <li><strong>Máquina:</strong> #${maquinaId}</li>
+    <li><strong>Cliente asociado:</strong> ${cliente}</li>
+    <li><strong>Importe total:</strong> ${importe}</li>
+    <li><strong>Condiciones:</strong> ${condiciones}</li>
+    <li><strong>Referencia temporal:</strong> ${expiraAt}</li>
+  </ul>
+  <p>El presupuesto ha quedado autoaceptado internamente.</p>
+</body>
+</html>`;
+}
+
+export function buildPresupuestoReparacionInternalEmailText(data) {
+  const cliente = String(data.cliente ?? "").trim() || "No disponible";
+  const importe = formatMoneyES(data.importeTotal);
+  const condiciones =
+    String(data.condiciones ?? "").trim() || "No disponible";
+  const expiraAt = formatDateES(data.expiraAt);
+
+  return [
+    "Se ha registrado un presupuesto interno de reparación asumido por la empresa.",
+    `Reparación: #${data.reparacionId}`,
+    `Máquina: #${data.maquinaId}`,
+    `Cliente asociado: ${cliente}`,
+    `Importe total: ${importe}`,
+    `Condiciones: ${condiciones}`,
+    `Referencia temporal: ${expiraAt}`,
+    "",
+    "El presupuesto ha quedado autoaceptado internamente.",
+  ].join("\n");
+}

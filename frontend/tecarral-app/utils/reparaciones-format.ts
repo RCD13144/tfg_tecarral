@@ -42,7 +42,23 @@ export function canAssignRepair(item: RepairListItem, isAdmin: boolean) {
   return isAdmin && normalizeValue(item.maintenance_status) === 'AVERIADA_GRAVE';
 }
 
-export function canFinishRepair(item: RepairListItem) {
+function isAssignedToCurrentUser(item: RepairListItem, currentUserId: number | null) {
+  const assignedUserId = normalizePositiveId(item.id_user_asignado);
+  return assignedUserId !== null && currentUserId !== null && assignedUserId === currentUserId;
+}
+
+export function canFinishRepair(
+  item: RepairListItem,
+  currentUserId: number | null,
+  isAdmin: boolean
+) {
+  if (
+    normalizePositiveId(item.id_user_asignado) !== null &&
+    !isAssignedToCurrentUser(item, currentUserId)
+  ) {
+    return false;
+  }
+
   if (!isGraveRepair(item)) {
     return true;
   }
@@ -53,17 +69,29 @@ export function canFinishRepair(item: RepairListItem) {
   );
 }
 
-export function getFinishRepairBlockedReason(item: RepairListItem) {
+export function getFinishRepairBlockedReason(
+  item: RepairListItem,
+  currentUserId: number | null,
+  isAdmin: boolean
+) {
+  if (
+    isAdmin &&
+    normalizePositiveId(item.id_user_asignado) !== null &&
+    !isAssignedToCurrentUser(item, currentUserId)
+  ) {
+    return 'Esta reparación está asignada a otro usuario. Reasígnala si necesitas que la termine otra persona.';
+  }
+
   if (!isGraveRepair(item)) {
     return null;
   }
 
   if (normalizePositiveId(item.id_user_asignado) === null) {
-    return 'Asigna primero esta averia grave a un usuario antes de terminarla.';
+    return 'Asigna primero esta avería grave a un usuario antes de terminarla.';
   }
 
   if (normalizeValue(item.estado) !== 'PRESUPUESTO_ACEPTADO') {
-    return 'La averia grave solo puede terminarse cuando el presupuesto esta aceptado.';
+    return 'La avería grave solo puede terminarse cuando el presupuesto está aceptado.';
   }
 
   return null;

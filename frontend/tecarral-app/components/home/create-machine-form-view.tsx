@@ -28,6 +28,7 @@ export function CreateMachineFormView({
   onToggleElevationLibre,
   onPickImageFromLibrary,
   onTakePhoto,
+  onRequestScrollToFocusedInput,
 }: {
   form: MachineCreateFormData;
   feedback: string | null;
@@ -39,7 +40,10 @@ export function CreateMachineFormView({
   motorOptions: readonly { label: string; value: string }[];
   seguroOptions: readonly { label: string; value: string }[];
   onBack: () => void;
-  onChangeField: <K extends keyof MachineCreateFormData>(key: K, value: MachineCreateFormData[K]) => void;
+  onChangeField: <K extends keyof MachineCreateFormData>(
+    key: K,
+    value: MachineCreateFormData[K]
+  ) => void;
   onSubmit: () => void;
   onToggleTipo: () => void;
   onToggleMotor: () => void;
@@ -49,6 +53,7 @@ export function CreateMachineFormView({
   onToggleElevationLibre: () => void;
   onPickImageFromLibrary: () => void;
   onTakePhoto: () => void;
+  onRequestScrollToFocusedInput?: () => void;
 }) {
   const isElevation = form.tipo === 'elevacion';
 
@@ -59,7 +64,7 @@ export function CreateMachineFormView({
         <Text style={homeStyles.formBackButtonText}>Volver al listado</Text>
       </Pressable>
 
-      <Text style={homeStyles.detailTitle}>Nueva maquina</Text>
+      <Text style={homeStyles.detailTitle}>Nueva máquina</Text>
       <Text style={homeStyles.sectionHint}>
         Se creará automáticamente como disponible y ubicada en taller.
       </Text>
@@ -107,10 +112,10 @@ export function CreateMachineFormView({
         value={form.modelo}
       />
 
-      <Text style={homeStyles.formFieldLabel}>Numero de serie</Text>
+      <Text style={homeStyles.formFieldLabel}>Número de serie</Text>
       <TextInput
         onChangeText={(value) => onChangeField('ns', value)}
-        placeholder="Numero de serie"
+        placeholder="Número de serie"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={form.ns}
@@ -151,10 +156,11 @@ export function CreateMachineFormView({
         }
       />
 
-      <Text style={homeStyles.formFieldLabel}>Numero de poliza</Text>
+      <Text style={homeStyles.formFieldLabel}>Número de póliza</Text>
       <TextInput
         onChangeText={(value) => onChangeField('num_poliza', value)}
-        placeholder="Numero de poliza"
+        onFocus={onRequestScrollToFocusedInput}
+        placeholder="Número de póliza"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={form.num_poliza}
@@ -164,6 +170,7 @@ export function CreateMachineFormView({
       <TextInput
         multiline
         onChangeText={(value) => onChangeField('observaciones', value)}
+        onFocus={onRequestScrollToFocusedInput}
         placeholder="Observaciones"
         placeholderTextColor={AppColors.primary50}
         style={[homeStyles.formInput, homeStyles.incidenceInput]}
@@ -172,7 +179,7 @@ export function CreateMachineFormView({
 
       {isElevation ? (
         <>
-          <Text style={homeStyles.sectionTitle}>Datos de elevacion</Text>
+          <Text style={homeStyles.sectionTitle}>Datos de elevación</Text>
 
           <Text style={homeStyles.formFieldLabel}>Ruedas</Text>
           <TextInput
@@ -204,7 +211,7 @@ export function CreateMachineFormView({
 
           <SelectorField
             isOpen={elevationLibreOpen}
-            label="Elevacion libre"
+            label="Elevación libre"
             onSelect={(value) =>
               onChangeField(
                 'elev_elevacion_libre',
@@ -221,10 +228,10 @@ export function CreateMachineFormView({
             }
           />
 
-          <Text style={homeStyles.formFieldLabel}>Elevacion (cm)</Text>
+          <Text style={homeStyles.formFieldLabel}>Elevación (cm)</Text>
           <TextInput
             onChangeText={(value) => onChangeField('elev_elevacion', value)}
-            placeholder="Elevacion (cm)"
+            placeholder="Elevación (cm)"
             placeholderTextColor={AppColors.primary50}
             style={homeStyles.formInput}
             value={form.elev_elevacion}
@@ -239,10 +246,10 @@ export function CreateMachineFormView({
             value={form.elev_desplazamiento}
           />
 
-          <Text style={homeStyles.formFieldLabel}>Posicion</Text>
+          <Text style={homeStyles.formFieldLabel}>Posición</Text>
           <TextInput
             onChangeText={(value) => onChangeField('elev_posicion', value)}
-            placeholder="Posicion"
+            placeholder="Posición"
             placeholderTextColor={AppColors.primary50}
             style={homeStyles.formInput}
             value={form.elev_posicion}
@@ -257,10 +264,10 @@ export function CreateMachineFormView({
             value={form.elev_antihuella}
           />
 
-          <Text style={homeStyles.formFieldLabel}>Matricula</Text>
+          <Text style={homeStyles.formFieldLabel}>Matrícula</Text>
           <TextInput
             onChangeText={(value) => onChangeField('elev_matricula', value)}
-            placeholder="Matricula"
+            placeholder="Matrícula"
             placeholderTextColor={AppColors.primary50}
             style={homeStyles.formInput}
             value={form.elev_matricula}
@@ -322,7 +329,7 @@ export function CreateMachineFormView({
         onPress={onSubmit}
         style={[homeStyles.primaryActionButton, submitting && homeStyles.actionButtonDisabled]}>
         <Text style={homeStyles.primaryActionButtonText}>
-          {submitting ? 'Creando...' : 'Crear maquina'}
+          {submitting ? 'Creando...' : 'Crear máquina'}
         </Text>
       </Pressable>
     </View>

@@ -8,7 +8,7 @@ import { userStyles } from '@/styles/user.styles';
 import type { AuthSession } from '@/types/auth';
 
 const ROLE_OPTIONS = [
-  { label: 'Tecnico', value: 'tecnico' },
+  { label: 'Técnico', value: 'tecnico' },
   { label: 'Admin', value: 'admin' },
 ];
 
@@ -16,17 +16,19 @@ export function UserScreen({
   session,
   visible,
   onOpenHelp,
+  onRequestScrollToFocusedInput,
 }: {
   session: AuthSession | null;
   visible: boolean;
   onOpenHelp: () => void;
+  onRequestScrollToFocusedInput?: () => void;
 }) {
   const user = useUserScreen(session, visible);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const [deactivatePickerOpen, setDeactivatePickerOpen] = useState(false);
 
   const selectedRoleLabel =
-    ROLE_OPTIONS.find((option) => option.value === user.createUserForm.role)?.label ?? 'Tecnico';
+    ROLE_OPTIONS.find((option) => option.value === user.createUserForm.role)?.label ?? 'Técnico';
   const selectedDeactivateLabel =
     user.activeUsersForDeactivate.find(
       (option) => String(option.id_user) === user.selectedDeactivateUserId
@@ -38,7 +40,7 @@ export function UserScreen({
 
       <Text style={userStyles.title}>Usuario</Text>
       <Text style={userStyles.subtitle}>
-        Aqui puedes consultar tu informacion y actualizar los datos que tienen sentido modificar
+        Aquí puedes consultar tu información y actualizar los datos que tienen sentido modificar
         desde la app.
       </Text>
 
@@ -61,15 +63,16 @@ export function UserScreen({
         </Text>
 
         <Text style={userStyles.readonlyHint}>
-          Por seguridad, email, nombre y rol se muestran en solo lectura. El telefono si puede
-          actualizarse desde aqui.
+          Por seguridad, email, nombre y rol se muestran en solo lectura. El teléfono sí puede
+          actualizarse desde aquí.
         </Text>
 
-        <Text style={userStyles.inputLabel}>Telefono</Text>
+        <Text style={userStyles.inputLabel}>Teléfono</Text>
         <TextInput
           keyboardType="phone-pad"
           onChangeText={(value) => user.updateProfileField('telefono', value)}
-          placeholder="Telefono"
+          onFocus={onRequestScrollToFocusedInput}
+          placeholder="Teléfono"
           style={userStyles.input}
           value={user.profileForm.telefono}
         />
@@ -174,11 +177,12 @@ export function UserScreen({
               value={user.createUserForm.email}
             />
 
-            <Text style={userStyles.inputLabel}>Telefono</Text>
+            <Text style={userStyles.inputLabel}>Teléfono</Text>
             <TextInput
               keyboardType="phone-pad"
               onChangeText={(value) => user.updateCreateUserField('telefono', value)}
-              placeholder="Telefono"
+              onFocus={onRequestScrollToFocusedInput}
+              placeholder="Teléfono"
               style={userStyles.input}
               value={user.createUserForm.telefono}
             />
@@ -227,8 +231,8 @@ export function UserScreen({
                   {user.registeredUserSummary.temporaryPassword}
                 </Text>
                 <Text style={userStyles.listHint}>
-                  El flujo de primer acceso sigue activo: el admin entrega esta contrasena y el
-                  nuevo usuario la cambia al iniciar sesion.
+                  El flujo de primer acceso sigue activo: el admin entrega esta contraseña y el
+                  nuevo usuario la cambia al iniciar sesión.
                 </Text>
               </View>
             ) : null}
@@ -274,7 +278,7 @@ export function UserScreen({
             </Pressable>
 
             <Text style={userStyles.listHint}>
-              Aqui solo aparecen usuarios activos distintos de tu propia cuenta.
+              Aquí solo aparecen usuarios activos distintos de tu propia cuenta.
             </Text>
           </View>
         </>

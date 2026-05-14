@@ -6,24 +6,28 @@ export function ReparacionesScreen({
   session,
   visible,
   onOpenHelp,
+  onRequestScrollToFocusedInput,
 }: {
   session: AuthSession | null;
   visible: boolean;
   onOpenHelp: () => void;
+  onRequestScrollToFocusedInput?: () => void;
 }) {
   const repairs = useReparacionesScreen(session, visible);
 
   return (
     <RepairListView
+      currentUserId={session?.user.id_user ?? null}
       feedback={repairs.feedback}
       isAdmin={repairs.isAdmin}
       loading={repairs.loading}
       onChangeSolutionText={repairs.updateSolutionText}
+      onOpenHelp={onOpenHelp}
+      onRequestScrollToFocusedInput={onRequestScrollToFocusedInput}
       onSelectAssignee={repairs.selectAssignee}
       onSubmitAssignment={(repairId) => void repairs.submitAssignment(repairId)}
       onSubmitFinish={(repairId) => void repairs.submitFinishRepair(repairId)}
       onToggleSelector={repairs.toggleSelector}
-      onOpenHelp={onOpenHelp}
       openSelectorRepairId={repairs.openSelectorRepairId}
       repairs={repairs.reparaciones}
       selectedAssignees={repairs.selectedAssignees}

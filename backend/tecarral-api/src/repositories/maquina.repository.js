@@ -545,53 +545,122 @@ function isProvided(value) {
 }
 
 export async function editarMaquina(id, patch) {
-    const columns = [];
-    const values = [];
+    const client = await pool.connect();
 
-    function addSet(columnName, value) {
-        values.push(value);
-        columns.push(`${columnName} = $${values.length}`);
-    }
+    try {
+        await client.query("BEGIN");
 
-    if (isProvided(patch.subtipo)) addSet("tipo", patch.subtipo);
-    if (isProvided(patch.tipoMaquina)) addSet("tipo_maquina", patch.tipoMaquina);
-
-    if (isProvided(patch.availability)) addSet("availability_status", patch.availability);
-
-    if (isProvided(patch.motor)) addSet("motor", patch.motor);
-    if (isProvided(patch.ubicacion_tipo)) addSet("ubicacion_tipo", patch.ubicacion_tipo);
-
-    if (isProvided(patch.marca)) addSet("marca", patch.marca);
-    if (isProvided(patch.modelo)) addSet("modelo", patch.modelo);
-    if (isProvided(patch.ns)) addSet("ns", patch.ns);
-
-    if (isProvided(patch.ubicacion)) addSet("ubicacion", patch.ubicacion);
-    if (isProvided(patch.observaciones)) addSet("observaciones", patch.observaciones);
-
-    if (isProvided(patch.seguro)) addSet("seguro", patch.seguro);
-
-    if (isProvided(patch.num_poliza)) addSet("num_poliza", patch.num_poliza);
-
-    if (columns.length === 0) {
-        const existing = await pool.query(
-            "SELECT * FROM maquina WHERE id_maquina = $1",
+        const lockRes = await client.query(
+            `
+            SELECT id_maquina
+            FROM maquina
+            WHERE id_maquina = $1
+            FOR UPDATE
+            `,
             [id]
         );
-        return existing.rows[0] ?? null;
+
+        if (lockRes.rowCount === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const columns = [];
+        const values = [];
+
+        function addSet(columnName, value) {
+            values.push(value);
+            columns.push(`${columnName} = $${values.length}`);
+        }
+
+        if (isProvided(patch.subtipo)) addSet("tipo", patch.subtipo);
+        if (isProvided(patch.tipoMaquina)) addSet("tipo_maquina", patch.tipoMaquina);
+        if (isProvided(patch.availability)) addSet("availability_status", patch.availability);
+        if (isProvided(patch.motor)) addSet("motor", patch.motor);
+        if (isProvided(patch.ubicacion_tipo)) addSet("ubicacion_tipo", patch.ubicacion_tipo);
+        if (isProvided(patch.marca)) addSet("marca", patch.marca);
+        if (isProvided(patch.modelo)) addSet("modelo", patch.modelo);
+        if (isProvided(patch.ns)) addSet("ns", patch.ns);
+        if (isProvided(patch.ubicacion)) addSet("ubicacion", patch.ubicacion);
+        if (isProvided(patch.observaciones)) addSet("observaciones", patch.observaciones);
+        if (isProvided(patch.seguro)) addSet("seguro", patch.seguro);
+        if (isProvided(patch.num_poliza)) addSet("num_poliza", patch.num_poliza);
+
+        if (columns.length > 0) {
+            values.push(id);
+            const idIndex = values.length;
+
+            await client.query(
+                `
+                UPDATE maquina
+                SET ${columns.join(", ")}
+                WHERE id_maquina = $${idIndex}
+                `,
+                values
+            );
+        }
+
+        const elevColumns = [];
+        const elevValues = [];
+
+        function addElevValue(value) {
+            elevValues.push(value);
+            return `$${elevValues.length}`;
+        }
+
+        const elevFieldMap = [
+            ["ruedas", patch.elev_ruedas],
+            ["cap_carga", patch.elev_cap_carga],
+            ["replegado_mm", patch.elev_replegado_mm],
+            ["elevacion_libre", patch.elev_elevacion_libre],
+            ["elevacion", patch.elev_elevacion],
+            ["desplazamiento", patch.elev_desplazamiento],
+            ["posicion", patch.elev_posicion],
+            ["antihuella", patch.elev_antihuella],
+            ["matricula", patch.elev_matricula],
+            ["largo", patch.elev_largo],
+            ["alto", patch.elev_alto],
+            ["ancho", patch.elev_ancho],
+            ["peso_kg", patch.elev_peso_kg],
+            ["horquillas", patch.elev_horquillas],
+        ];
+
+        for (const [columnName, value] of elevFieldMap) {
+            if (isProvided(value)) {
+                elevColumns.push(columnName);
+            }
+        }
+
+        if (elevColumns.length > 0) {
+            const insertPlaceholders = [addElevValue(id)];
+            const updates = [];
+
+            for (const columnName of elevColumns) {
+                const fieldValue = elevFieldMap.find(([key]) => key === columnName)?.[1];
+                const placeholder = addElevValue(fieldValue);
+                insertPlaceholders.push(placeholder);
+                updates.push(`${columnName} = EXCLUDED.${columnName}`);
+            }
+
+            await client.query(
+                `
+                INSERT INTO maquina_elevacion (id_maquina, ${elevColumns.join(", ")})
+                VALUES (${insertPlaceholders.join(", ")})
+                ON CONFLICT (id_maquina)
+                DO UPDATE SET ${updates.join(", ")}
+                `,
+                elevValues
+            );
+        }
+
+        await client.query("COMMIT");
+        return getMaquinariaByIdFromDB(id);
+    } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+    } finally {
+        client.release();
     }
-
-    values.push(id);
-    const idIndex = values.length;
-
-    const query = `
-        UPDATE maquina
-        SET ${columns.join(", ")}
-        WHERE id_maquina = $${idIndex}
-        RETURNING *;
-    `;
-
-    const result = await pool.query(query, values);
-    return result.rows[0] ?? null;
 }
 
 export async function deleteMaquina(id) {

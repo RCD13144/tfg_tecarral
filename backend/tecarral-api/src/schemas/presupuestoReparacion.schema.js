@@ -13,6 +13,16 @@ function normalizeNullableNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function normalizePayerType(value) {
+  const text = String(value ?? "").trim().toUpperCase();
+  return text === "CLIENTE" || text === "EMPRESA" ? text : null;
+}
+
+function normalizeChargeReason(value) {
+  const text = String(value ?? "").trim().toUpperCase();
+  return text === "GOLPE_ACCIDENTE" ? text : null;
+}
+
 export function validateCreatePresupuestoReparacionBody(body) {
   const errors = [];
 
@@ -21,6 +31,8 @@ export function validateCreatePresupuestoReparacionBody(body) {
   const importeTotal = normalizeNullableNumber(body?.importe_total);
   const condiciones = normalizeNullableText(body?.condiciones);
   const expiraAtRaw = String(body?.expira_at ?? "").trim();
+  const payerType = normalizePayerType(body?.payer_type);
+  const chargeReason = normalizeChargeReason(body?.charge_reason);
 
   if (!isPositiveInteger(reparacionId)) {
     errors.push("reparacion_id debe ser un entero positivo");
@@ -38,6 +50,17 @@ export function validateCreatePresupuestoReparacionBody(body) {
 
   if (expiraAtRaw.length === 0) {
     errors.push("expira_at es obligatorio");
+  }
+
+  if (payerType === null) {
+    errors.push("payer_type debe ser CLIENTE o EMPRESA");
+  }
+
+  if (
+    String(body?.charge_reason ?? "").trim().length > 0 &&
+    chargeReason === null
+  ) {
+    errors.push("charge_reason debe ser GOLPE_ACCIDENTE");
   }
 
   const expiraAtDate = new Date(expiraAtRaw);
@@ -65,6 +88,8 @@ export function validateCreatePresupuestoReparacionBody(body) {
           importe_total: importeTotal,
           condiciones,
           expira_at: expiraAtDate.toISOString(),
+          payer_type: payerType,
+          charge_reason: chargeReason,
         }
       : null,
   };

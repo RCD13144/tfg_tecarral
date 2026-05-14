@@ -14,6 +14,7 @@ export function ProposalFormView({
   proposalForm,
   onBack,
   onChangeField,
+  onRequestScrollToFocusedInput,
   onSubmit,
   proposalSubmitting,
 }: {
@@ -22,13 +23,14 @@ export function ProposalFormView({
   proposalForm: ProposalFormData;
   onBack: () => void;
   onChangeField: <K extends keyof ProposalFormData>(key: K, value: ProposalFormData[K]) => void;
+  onRequestScrollToFocusedInput?: () => void;
   onSubmit: () => void;
   proposalSubmitting: boolean;
 }) {
   if (!selectedMachineDetail) {
     return (
       <View style={homeStyles.centeredBlock}>
-        <Text style={homeStyles.emptyStateText}>No hay maquina seleccionada.</Text>
+        <Text style={homeStyles.emptyStateText}>No hay máquina seleccionada.</Text>
       </View>
     );
   }
@@ -43,12 +45,15 @@ export function ProposalFormView({
       <Text style={homeStyles.detailTitle}>Nueva propuesta</Text>
 
       <View style={homeStyles.proposalSummaryCard}>
-        <Text style={homeStyles.proposalSummaryTitle}>Maquina seleccionada</Text>
+        <Text style={homeStyles.proposalSummaryTitle}>Máquina seleccionada</Text>
         <FieldRow label="ID" value={selectedMachineDetail.id_maquina} />
         <FieldRow label="Nombre" value={formatMachineName(selectedMachineDetail)} />
         <FieldRow label="Marca" value={selectedMachineDetail.marca} />
         <FieldRow label="Modelo" value={selectedMachineDetail.modelo} />
-        <FieldRow label="Ubicacion" value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)} />
+        <FieldRow
+          label="Ubicación"
+          value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)}
+        />
         <FieldRow label="Disponibilidad" value={selectedMachineDetail.availability_status} />
       </View>
 
@@ -73,28 +78,32 @@ export function ProposalFormView({
       <TextInput
         keyboardType="phone-pad"
         onChangeText={(value) => onChangeField('telefono', value)}
-        placeholder="Telefono"
+        onFocus={onRequestScrollToFocusedInput}
+        placeholder="Teléfono"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={proposalForm.telefono}
       />
       <TextInput
         onChangeText={(value) => onChangeField('direccion', value)}
-        placeholder="Direccion"
+        onFocus={onRequestScrollToFocusedInput}
+        placeholder="Dirección"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={proposalForm.direccion}
       />
       <TextInput
         onChangeText={(value) => onChangeField('cp', value)}
-        placeholder="Codigo postal"
+        onFocus={onRequestScrollToFocusedInput}
+        placeholder="Código postal"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={proposalForm.cp}
       />
       <TextInput
         onChangeText={(value) => onChangeField('poblacion', value)}
-        placeholder="Poblacion"
+        onFocus={onRequestScrollToFocusedInput}
+        placeholder="Población"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={proposalForm.poblacion}
@@ -102,19 +111,20 @@ export function ProposalFormView({
       <TextInput
         keyboardType="numeric"
         onChangeText={(value) => onChangeField('precio', value)}
+        onFocus={onRequestScrollToFocusedInput}
         placeholder="Precio"
         placeholderTextColor={AppColors.primary50}
         style={homeStyles.formInput}
         value={proposalForm.precio}
       />
       <DateTimePickerField
-        label="Fecha inicio"
+        label="Fecha de inicio"
         onChange={(value) => onChangeField('fecha_inicio', value)}
         placeholder="Selecciona fecha y hora"
         value={proposalForm.fecha_inicio}
       />
       <DateTimePickerField
-        label="Fecha fin"
+        label="Fecha de fin"
         onChange={(value) => onChangeField('fecha_fin', value)}
         placeholder="Selecciona fecha y hora"
         value={proposalForm.fecha_fin}

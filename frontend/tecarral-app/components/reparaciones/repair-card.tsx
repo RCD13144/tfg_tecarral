@@ -15,6 +15,7 @@ import {
 export function RepairCard({
   item,
   isAdmin,
+  currentUserId,
   userOptions,
   selectedAssignee,
   solutionText,
@@ -26,9 +27,11 @@ export function RepairCard({
   onChangeSolutionText,
   onSubmitAssignment,
   onSubmitFinish,
+  onRequestScrollToFocusedInput,
 }: {
   item: RepairListItem;
   isAdmin: boolean;
+  currentUserId: number | null;
   userOptions: { label: string; value: string }[];
   selectedAssignee: string;
   solutionText: string;
@@ -40,24 +43,29 @@ export function RepairCard({
   onChangeSolutionText: (value: string) => void;
   onSubmitAssignment: () => void;
   onSubmitFinish: () => void;
+  onRequestScrollToFocusedInput?: () => void;
 }) {
   const assignmentEnabled = canAssignRepair(item, isAdmin);
-  const finishEnabled = canFinishRepair(item);
-  const finishBlockedReason = getFinishRepairBlockedReason(item);
+  const finishEnabled = canFinishRepair(item, currentUserId, isAdmin);
+  const finishBlockedReason = getFinishRepairBlockedReason(item, currentUserId, isAdmin);
   const selectedUserLabel =
     userOptions.find((option) => option.value === selectedAssignee)?.label ?? 'Selecciona usuario';
 
   const finishBlock = (
     <View style={reparacionesStyles.finishBlock}>
       <Text style={reparacionesStyles.hint}>
-        Anade una breve solucion aplicada antes de intentar terminar la reparacion.
+        Añade una breve solución aplicada antes de intentar terminar la reparación.
       </Text>
       <TextInput
+        autoCorrect
+        cursorColor={AppColors.primary}
         editable={!submittingFinish}
         multiline
         onChangeText={onChangeSolutionText}
-        placeholder="Solucion aplicada"
+        onFocus={onRequestScrollToFocusedInput}
+        placeholder="Solución aplicada"
         placeholderTextColor={AppColors.primary50}
+        selectionColor={AppColors.primary}
         style={reparacionesStyles.solutionInput}
         value={solutionText}
       />
@@ -72,7 +80,7 @@ export function RepairCard({
           (!finishEnabled || submittingFinish) && reparacionesStyles.assignButtonDisabled,
         ]}>
         <Text style={reparacionesStyles.assignButtonText}>
-          {submittingFinish ? 'Terminando...' : 'Terminar reparacion'}
+          {submittingFinish ? 'Terminando...' : 'Terminar reparación'}
         </Text>
       </Pressable>
     </View>
@@ -81,14 +89,14 @@ export function RepairCard({
   return (
     <View style={reparacionesStyles.card}>
       <View style={reparacionesStyles.cardHeader}>
-        <Text style={reparacionesStyles.cardTitle}>Reparacion #{item.id_reparacion}</Text>
+        <Text style={reparacionesStyles.cardTitle}>Reparación #{item.id_reparacion}</Text>
         <View style={reparacionesStyles.cardBadge}>
           <Text style={reparacionesStyles.cardBadgeText}>{item.estado}</Text>
         </View>
       </View>
 
       <Text style={reparacionesStyles.line}>
-        <Text style={reparacionesStyles.label}>Maquina: </Text>
+        <Text style={reparacionesStyles.label}>Máquina: </Text>
         <Text style={reparacionesStyles.value}>
           #{item.id_maquina} · {formatRepairMachineLabel(item)}
         </Text>
@@ -98,11 +106,11 @@ export function RepairCard({
         <Text style={reparacionesStyles.value}>{item.cliente ?? '-'}</Text>
       </Text>
       <Text style={reparacionesStyles.line}>
-        <Text style={reparacionesStyles.label}>Tipo averia: </Text>
+        <Text style={reparacionesStyles.label}>Tipo de avería: </Text>
         <Text style={reparacionesStyles.value}>{item.maintenance_status ?? '-'}</Text>
       </Text>
       <Text style={reparacionesStyles.line}>
-        <Text style={reparacionesStyles.label}>Albaran: </Text>
+        <Text style={reparacionesStyles.label}>Albarán: </Text>
         <Text style={reparacionesStyles.value}>
           #{item.id_albaran ?? '-'} · {item.albaran_estado ?? '-'}
         </Text>
@@ -113,6 +121,16 @@ export function RepairCard({
           {item.presupuesto_reparacion_id
             ? `#${item.presupuesto_reparacion_id} · ${item.presupuesto_estado ?? '-'}`
             : 'Sin presupuesto'}
+        </Text>
+      </Text>
+      <Text style={reparacionesStyles.line}>
+        <Text style={reparacionesStyles.label}>Paga: </Text>
+        <Text style={reparacionesStyles.value}>
+          {item.presupuesto_payer_type === 'CLIENTE'
+            ? 'Cliente'
+            : item.presupuesto_payer_type === 'EMPRESA'
+              ? 'Empresa'
+              : '-'}
         </Text>
       </Text>
       <Text style={reparacionesStyles.line}>
@@ -155,12 +173,12 @@ export function RepairCard({
                 reparacionesStyles.assignButtonDisabled,
             ]}>
             <Text style={reparacionesStyles.assignButtonText}>
-              {submittingAssignment ? 'Asignando...' : 'Asignar reparacion'}
+              {submittingAssignment ? 'Asignando...' : 'Asignar reparación'}
             </Text>
           </Pressable>
 
           <Text style={reparacionesStyles.hint}>
-            Solo las reparaciones de averia grave pueden ser asignadas por un admin.
+            Solo las reparaciones de avería grave pueden ser asignadas por un admin.
           </Text>
         </View>
       ) : null}

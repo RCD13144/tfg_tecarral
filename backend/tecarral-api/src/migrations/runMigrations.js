@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import fs from "fs";
 import path from "path";
 import pg from "pg";
@@ -69,6 +71,7 @@ export async function runMigrations() {
           "INSERT INTO schema_migrations (filename) VALUES ($1)",
           [file]
         );
+        console.log(`Applied migration: ${file}`);
       }
     }
 

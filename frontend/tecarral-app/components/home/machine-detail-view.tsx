@@ -57,9 +57,12 @@ export function MachineDetailView({
   machineEditTipoOpen,
   machineEditMotorOpen,
   machineEditSeguroOpen,
+  machineEditElevationLibreOpen,
+  machineEditAntihuellaOpen,
   machineTipoOptions,
   machineMotorOptions,
   machineSeguroOptions,
+  machineBooleanOptions,
   onChangeMachineEditField,
   onOpenMachineEdit,
   onCancelMachineEdit,
@@ -67,6 +70,8 @@ export function MachineDetailView({
   onToggleMachineEditTipo,
   onToggleMachineEditMotor,
   onToggleMachineEditSeguro,
+  onToggleMachineEditElevationLibre,
+  onToggleMachineEditAntihuella,
   onPickMachineEditImageFromLibrary,
   onTakeMachineEditPhoto,
   showRepairBudgetButton,
@@ -76,6 +81,7 @@ export function MachineDetailView({
   onOpenNavigation,
   canSubmitIncidence,
   incidenceEscalationMode,
+  onRequestScrollToFocusedInput,
 }: {
   detailLoading: boolean;
   selectedMachineDetail: MachineDetail | null;
@@ -117,9 +123,12 @@ export function MachineDetailView({
   machineEditTipoOpen: boolean;
   machineEditMotorOpen: boolean;
   machineEditSeguroOpen: boolean;
+  machineEditElevationLibreOpen: boolean;
+  machineEditAntihuellaOpen: boolean;
   machineTipoOptions: readonly { label: string; value: string }[];
   machineMotorOptions: readonly { label: string; value: string }[];
   machineSeguroOptions: readonly { label: string; value: string }[];
+  machineBooleanOptions: readonly { label: string; value: string }[];
   onChangeMachineEditField: <K extends keyof MachineEditFormData>(
     key: K,
     value: MachineEditFormData[K]
@@ -130,6 +139,8 @@ export function MachineDetailView({
   onToggleMachineEditTipo: () => void;
   onToggleMachineEditMotor: () => void;
   onToggleMachineEditSeguro: () => void;
+  onToggleMachineEditElevationLibre: () => void;
+  onToggleMachineEditAntihuella: () => void;
   onPickMachineEditImageFromLibrary: () => void;
   onTakeMachineEditPhoto: () => void;
   showRepairBudgetButton: boolean;
@@ -139,6 +150,7 @@ export function MachineDetailView({
   onOpenNavigation: () => void;
   canSubmitIncidence: boolean;
   incidenceEscalationMode: boolean;
+  onRequestScrollToFocusedInput?: () => void;
 }) {
   if (detailLoading) {
     return (
@@ -152,7 +164,7 @@ export function MachineDetailView({
   if (!selectedMachineDetail) {
     return (
       <View style={homeStyles.centeredBlock}>
-        <Text style={homeStyles.emptyStateText}>No se pudo cargar el detalle de la maquina.</Text>
+        <Text style={homeStyles.emptyStateText}>No se pudo cargar el detalle de la máquina.</Text>
       </View>
     );
   }
@@ -164,6 +176,7 @@ export function MachineDetailView({
     selectedMaintenanceStatus || selectedMachineDetail.maintenance_status
   );
   const isElevation = normalizeValue(selectedMachineDetail.tipo_maquina) === 'elevacion';
+  const isEditElevation = machineEditForm.tipo === 'elevacion';
 
   return (
     <View style={homeStyles.detailContainer}>
@@ -178,7 +191,7 @@ export function MachineDetailView({
         )}
       </View>
 
-      <Text style={homeStyles.detailTitle}>Maquina #{selectedMachineDetail.id_maquina}</Text>
+      <Text style={homeStyles.detailTitle}>Máquina #{selectedMachineDetail.id_maquina}</Text>
 
       {detailFeedback ? <Text style={homeStyles.feedbackText}>{detailFeedback}</Text> : null}
       {detailSuccessFeedback ? (
@@ -195,12 +208,27 @@ export function MachineDetailView({
         <Text style={homeStyles.detailLabel}>Seguro: </Text>
         <Text style={homeStyles.detailValue}>
           {selectedMachineDetail.seguro === true
-            ? 'Si'
+            ? 'Sí'
             : selectedMachineDetail.seguro === false
               ? 'No'
               : '-'}
         </Text>
       </Text>
+
+      {selectedMachineDetail.active_repair?.presupuesto_reparacion_id ? (
+        <Text style={homeStyles.detailLine}>
+          <Text style={homeStyles.detailLabel}>Presupuesto reparación: </Text>
+          <Text style={homeStyles.detailValue}>
+            #{selectedMachineDetail.active_repair.presupuesto_reparacion_id} ·{' '}
+            {selectedMachineDetail.active_repair.presupuesto_estado ?? '-'} ·{' '}
+            {selectedMachineDetail.active_repair.presupuesto_payer_type === 'CLIENTE'
+              ? 'Paga cliente'
+              : selectedMachineDetail.active_repair.presupuesto_payer_type === 'EMPRESA'
+                ? 'Paga empresa'
+                : '-'}
+          </Text>
+        </Text>
+      ) : null}
 
       {machineEditMode ? (
         <View style={homeStyles.sectionBlock}>
@@ -278,19 +306,20 @@ export function MachineDetailView({
             }
           />
 
-          <Text style={homeStyles.formFieldLabel}>Numero de serie</Text>
+          <Text style={homeStyles.formFieldLabel}>Número de serie</Text>
           <TextInput
             onChangeText={(value) => onChangeMachineEditField('ns', value)}
-            placeholder="Numero de serie"
+            placeholder="Número de serie"
             placeholderTextColor={AppColors.primary50}
             style={homeStyles.formInput}
             value={machineEditForm.ns}
           />
 
-          <Text style={homeStyles.formFieldLabel}>Numero de poliza</Text>
+          <Text style={homeStyles.formFieldLabel}>Número de póliza</Text>
           <TextInput
             onChangeText={(value) => onChangeMachineEditField('num_poliza', value)}
-            placeholder="Numero de poliza"
+            onFocus={onRequestScrollToFocusedInput}
+            placeholder="Número de póliza"
             placeholderTextColor={AppColors.primary50}
             style={homeStyles.formInput}
             value={machineEditForm.num_poliza}
@@ -315,11 +344,173 @@ export function MachineDetailView({
           <TextInput
             multiline
             onChangeText={(value) => onChangeMachineEditField('observaciones', value)}
+            onFocus={onRequestScrollToFocusedInput}
             placeholder="Observaciones"
             placeholderTextColor={AppColors.primary50}
             style={[homeStyles.formInput, homeStyles.incidenceInput]}
             value={machineEditForm.observaciones}
           />
+
+          {isEditElevation ? (
+            <>
+              <Text style={homeStyles.sectionTitle}>Datos de elevación</Text>
+
+              <Text style={homeStyles.formFieldLabel}>Ruedas</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_ruedas', value)}
+                placeholder="Ruedas"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_ruedas}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Capacidad de carga (Kg)</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_cap_carga', value)}
+                placeholder="Capacidad de carga (Kg)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_cap_carga}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Replegado (cm)</Text>
+              <TextInput
+                keyboardType="numeric"
+                onChangeText={(value) => onChangeMachineEditField('elev_replegado_mm', value)}
+                placeholder="Replegado (cm)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_replegado_mm}
+              />
+
+              <SelectorField
+                isOpen={machineEditElevationLibreOpen}
+                label="Elevación libre"
+                labelStyle={homeStyles.formFieldLabel}
+                onSelect={(value) =>
+                  onChangeMachineEditField(
+                    'elev_elevacion_libre',
+                    value as MachineEditFormData['elev_elevacion_libre']
+                  )
+                }
+                onToggleOpen={onToggleMachineEditElevationLibre}
+                options={[{ label: 'Sin definir', value: '' }, ...machineBooleanOptions]}
+                valueLabel={
+                  machineEditForm.elev_elevacion_libre
+                    ? machineBooleanOptions.find(
+                        (option) => option.value === machineEditForm.elev_elevacion_libre
+                      )?.label ?? machineEditForm.elev_elevacion_libre
+                    : 'Sin definir'
+                }
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Elevación (cm)</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_elevacion', value)}
+                placeholder="Elevacion (cm)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_elevacion}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Desplazamiento</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_desplazamiento', value)}
+                placeholder="Desplazamiento"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_desplazamiento}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Posición</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_posicion', value)}
+                placeholder="Posicion"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_posicion}
+              />
+
+              <SelectorField
+                isOpen={machineEditAntihuellaOpen}
+                label="Antihuella"
+                labelStyle={homeStyles.formFieldLabel}
+                onSelect={(value) =>
+                  onChangeMachineEditField(
+                    'elev_antihuella',
+                    value as MachineEditFormData['elev_antihuella']
+                  )
+                }
+                onToggleOpen={onToggleMachineEditAntihuella}
+                options={[{ label: 'Sin definir', value: '' }, ...machineBooleanOptions]}
+                valueLabel={
+                  machineEditForm.elev_antihuella
+                    ? machineBooleanOptions.find(
+                        (option) => option.value === machineEditForm.elev_antihuella
+                      )?.label ?? machineEditForm.elev_antihuella
+                    : 'Sin definir'
+                }
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Matrícula</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_matricula', value)}
+                placeholder="Matricula"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_matricula}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Largo (cm)</Text>
+              <TextInput
+                keyboardType="numeric"
+                onChangeText={(value) => onChangeMachineEditField('elev_largo', value)}
+                placeholder="Largo (cm)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_largo}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Alto (cm)</Text>
+              <TextInput
+                keyboardType="numeric"
+                onChangeText={(value) => onChangeMachineEditField('elev_alto', value)}
+                placeholder="Alto (cm)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_alto}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Ancho (cm)</Text>
+              <TextInput
+                keyboardType="numeric"
+                onChangeText={(value) => onChangeMachineEditField('elev_ancho', value)}
+                placeholder="Ancho (cm)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_ancho}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Peso (Kg)</Text>
+              <TextInput
+                keyboardType="numeric"
+                onChangeText={(value) => onChangeMachineEditField('elev_peso_kg', value)}
+                placeholder="Peso (Kg)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_peso_kg}
+              />
+
+              <Text style={homeStyles.formFieldLabel}>Horquillas (cm)</Text>
+              <TextInput
+                onChangeText={(value) => onChangeMachineEditField('elev_horquillas', value)}
+                placeholder="Horquillas (cm)"
+                placeholderTextColor={AppColors.primary50}
+                style={homeStyles.formInput}
+                value={machineEditForm.elev_horquillas}
+              />
+            </>
+          ) : null}
         </View>
       ) : null}
 
@@ -328,7 +519,7 @@ export function MachineDetailView({
           <SelectorField
             disabled={locationActionLoading || locationOptions.length <= 0}
             isOpen={locationPickerOpen}
-            label="Ubicacion"
+            label="Ubicación"
             onSelect={onSelectLocation}
             onToggleOpen={onToggleLocationPicker}
             options={locationOptions}
@@ -376,7 +567,7 @@ export function MachineDetailView({
             </Text>
           ) : (
             <Text style={homeStyles.feedbackText}>
-              Esta maquina necesita una propuesta aceptada para abrir la incidencia.
+              Esta máquina necesita una propuesta aceptada para abrir la incidencia.
             </Text>
           )}
           <Text style={homeStyles.incidenceHint}>
@@ -386,6 +577,7 @@ export function MachineDetailView({
           <TextInput
             multiline
             onChangeText={onChangeIncidenceComment}
+            onFocus={onRequestScrollToFocusedInput}
             placeholder="Comentario de la incidencia"
             placeholderTextColor={AppColors.primary50}
             style={homeStyles.incidenceInput}
@@ -401,10 +593,10 @@ export function MachineDetailView({
             <Text style={homeStyles.secondaryActionButtonText}>
               {statusActionLoading
                 ? incidenceEscalationMode
-                  ? 'Escalando averia...'
+                  ? 'Escalando avería...'
                   : 'Abriendo incidencia...'
                 : incidenceEscalationMode
-                  ? 'Escalar a averia grave'
+                  ? 'Escalar a avería grave'
                   : 'Abrir incidencia'}
             </Text>
           </Pressable>
@@ -446,12 +638,12 @@ export function MachineDetailView({
             Hay una propuesta aceptada: #{acceptedProposal.id}
           </Text>
         ) : (
-          <Text style={homeStyles.sectionHint}>No hay propuesta aceptada para esta maquina.</Text>
+          <Text style={homeStyles.sectionHint}>No hay propuesta aceptada para esta máquina.</Text>
         )}
 
         {proposalsExpanded ? (
           proposals.length === 0 ? (
-            <Text style={homeStyles.sectionHint}>Todavia no hay propuestas registradas.</Text>
+            <Text style={homeStyles.sectionHint}>Todavía no hay propuestas registradas.</Text>
           ) : (
             proposals.map((proposal) => <ProposalCard item={proposal} key={proposal.id} />)
           )
@@ -486,7 +678,7 @@ export function MachineDetailView({
 
       {machineEditMode ? (
         <Pressable onPress={onCancelMachineEdit} style={homeStyles.secondaryActionButtonBlock}>
-          <Text style={homeStyles.secondaryActionButtonText}>Cancelar edicion</Text>
+          <Text style={homeStyles.secondaryActionButtonText}>Cancelar edición</Text>
         </Pressable>
       ) : null}
 
