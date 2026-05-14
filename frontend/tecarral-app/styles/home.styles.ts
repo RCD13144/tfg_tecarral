@@ -197,6 +197,10 @@ export const homeStyles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  machineImageBare: {
+    width: '88%',
+    height: 96,
+  },
   machineInfo: {
     paddingHorizontal: 10,
     paddingVertical: 9,
@@ -246,6 +250,11 @@ export const homeStyles = StyleSheet.create({
   detailImage: {
     width: '100%',
     height: '100%',
+  },
+  detailImageBare: {
+    width: '78%',
+    maxWidth: 360,
+    height: 220,
   },
   detailTitle: {
     color: AppColors.primary,

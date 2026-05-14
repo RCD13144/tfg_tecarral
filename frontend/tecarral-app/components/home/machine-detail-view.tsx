@@ -192,7 +192,11 @@ export function MachineDetailView({
               <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
             </View>
           ) : (
-            <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
+            <ExpoImage
+              contentFit="contain"
+              source={machineImageSource}
+              style={homeStyles.detailImageBare}
+            />
           )
         ) : (
           <Ionicons color={AppColors.primary50} name="image-outline" size={42} />
