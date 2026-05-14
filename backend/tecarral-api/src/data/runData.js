@@ -22,6 +22,12 @@ function buildClient() {
   });
 }
 
+function sanitizeSeedSql(sql) {
+  return String(sql ?? "")
+    .replace(/^\s*\\(?:restrict|unrestrict)\b.*$/gm, "")
+    .trim();
+}
+
 export async function runData() {
   if (!shouldRunSeed()) {
     console.log("Seed desactivado (RUN_MAQUINARIA_SEED != true)");
@@ -45,7 +51,8 @@ export async function runData() {
     console.log("Ejecutando seed de maquinaria...");
 
     const seedPath = path.resolve(__dirname, "./maquinaria.sql");
-    const sql = await fs.readFile(seedPath, "utf8");
+    const rawSql = await fs.readFile(seedPath, "utf8");
+    const sql = sanitizeSeedSql(rawSql);
 
     await client.query("BEGIN");
 
