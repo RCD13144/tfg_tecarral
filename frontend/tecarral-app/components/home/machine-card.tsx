@@ -28,7 +28,11 @@ export function MachineCard({
               <ExpoImage contentFit="contain" source={imageSource} style={homeStyles.machineImage} />
             </View>
           ) : (
-            <ExpoImage contentFit="contain" source={imageSource} style={homeStyles.machineImage} />
+            <ExpoImage
+              contentFit="contain"
+              source={imageSource}
+              style={homeStyles.machineImageBare}
+            />
           )
         ) : (
           <Ionicons color={AppColors.primary50} name="image-outline" size={34} />
