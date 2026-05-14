@@ -60,6 +60,8 @@ export default function LoginScreen() {
     } catch (error) {
       if (error instanceof ApiError) {
         setFeedback(error.message);
+      } else if (error instanceof Error && error.message.trim().length > 0) {
+        setFeedback(`No se pudo conectar con el servidor. ${error.message}`);
       } else {
         setFeedback('No se pudo conectar con el servidor.');
       }
