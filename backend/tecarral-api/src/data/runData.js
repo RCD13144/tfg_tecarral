@@ -55,8 +55,13 @@ export async function runData() {
     const sql = sanitizeSeedSql(rawSql);
 
     await client.query("BEGIN");
+    await client.query("ALTER TABLE public.maquina DISABLE TRIGGER USER");
+    await client.query("ALTER TABLE public.maquina_elevacion DISABLE TRIGGER USER");
 
     await client.query(sql);
+
+    await client.query("ALTER TABLE public.maquina ENABLE TRIGGER USER");
+    await client.query("ALTER TABLE public.maquina_elevacion ENABLE TRIGGER USER");
 
     await client.query(
       "INSERT INTO data_migrations (key) VALUES ($1)",
