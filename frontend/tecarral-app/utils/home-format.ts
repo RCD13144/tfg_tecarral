@@ -4,6 +4,37 @@ import type { MachineDetail, MachineFilters, MachineProposalSummary, Maquina } f
 
 const MADRID_TIME_ZONE = 'Europe/Madrid';
 
+function getApiOrigin() {
+  return API_BASE_URL.replace(/\/api\/?$/, '');
+}
+
+function normalizeMachineImageUrl(imageUrl: string) {
+  const trimmedImageUrl = imageUrl.trim();
+
+  if (!trimmedImageUrl) {
+    return '';
+  }
+
+  const apiOrigin = getApiOrigin();
+
+  if (!/^https?:\/\//i.test(trimmedImageUrl)) {
+    return `${apiOrigin}${trimmedImageUrl.startsWith('/') ? trimmedImageUrl : `/${trimmedImageUrl}`}`;
+  }
+
+  try {
+    const parsedUrl = new URL(trimmedImageUrl);
+    const uploadsMatch = parsedUrl.pathname.match(/\/uploads\/.+$/i);
+
+    if (uploadsMatch) {
+      return `${apiOrigin}${uploadsMatch[0]}`;
+    }
+  } catch {
+    return trimmedImageUrl;
+  }
+
+  return trimmedImageUrl;
+}
+
 export function normalizeValue(value: unknown) {
   return String(value ?? '')
     .trim()
@@ -32,12 +63,7 @@ export function getMachineImageSource(machine: Pick<Maquina, 'modelo' | 'image_u
   const imageUrl = String(machine.image_url ?? '').trim();
 
   if (imageUrl.length > 0) {
-    if (/^https?:\/\//i.test(imageUrl)) {
-      return { uri: imageUrl };
-    }
-
-    const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, '');
-    return { uri: `${apiOrigin}${imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`}` };
+    return { uri: normalizeMachineImageUrl(imageUrl) };
   }
 
   const key = normalizeMachineImageKey(machine.modelo);

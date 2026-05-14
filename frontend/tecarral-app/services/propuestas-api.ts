@@ -12,7 +12,9 @@ export function createMachineProposal(
   data: ProposalFormData,
   token: string
 ) {
-  return apiRequest<MachineProposalSummary & { public_url?: string; email_sent?: boolean }>(
+  return apiRequest<
+    MachineProposalSummary & { public_url?: string; email_sent?: boolean; email_error?: string | null }
+  >(
     '/propuestas',
     {
       method: 'POST',

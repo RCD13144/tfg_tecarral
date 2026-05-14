@@ -33,8 +33,36 @@ export function createMailer() {
     host,
     port,
     secure,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+    tls: { servername: host },
     auth: { user, pass },
   });
+}
+
+function normalizeMailError(error) {
+  const code = String(error?.code ?? "").trim().toUpperCase();
+  const responseCode = Number(error?.responseCode);
+  const responseText = String(error?.response ?? error?.message ?? "").trim();
+
+  if (code === "EAUTH" || responseCode === 535) {
+    return new Error(
+      "Autenticación SMTP rechazada. Revisa SMTP_USER y SMTP_PASS; si usas Gmail, usa una contraseña de aplicación."
+    );
+  }
+
+  if (code === "ECONNECTION" || code === "ESOCKET" || code === "ETIMEDOUT") {
+    return new Error(
+      "No se pudo conectar con el servidor SMTP. Revisa SMTP_HOST/SMTP_PORT/SMTP_SECURE y que Oracle permita la salida."
+    );
+  }
+
+  if (responseCode === 553 || responseCode === 554) {
+    return new Error(`El servidor SMTP rechazó el envío: ${responseText || "destinatario o remitente inválido"}`);
+  }
+
+  return new Error(responseText || "Error enviando email");
 }
 
 export async function sendMail({ to, subject, html, text }) {
@@ -44,13 +72,17 @@ export async function sendMail({ to, subject, html, text }) {
   const fromEmail = readEnv("MAIL_FROM_EMAIL") || readEnv("SMTP_USER");
   const from = `${fromName} <${fromEmail}>`;
 
-  const info = await transporter.sendMail({
-    from,
-    to,
-    subject,
-    html,
-    text,
-  });
+  try {
+    const info = await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+      text,
+    });
 
-  return info;
+    return info;
+  } catch (error) {
+    throw normalizeMailError(error);
+  }
 }

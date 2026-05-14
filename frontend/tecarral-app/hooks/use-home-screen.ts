@@ -792,7 +792,11 @@ export function useHomeScreen(session: AuthSession | null) {
       setSelectedMachineProposals((current) => [response, ...current]);
       setHomeSubview('detail');
       if (response.email_sent === false) {
-        setDetailFeedback('Propuesta creada, pero no se pudo enviar el email.');
+        setDetailFeedback(
+          response.email_error?.trim()
+            ? `Propuesta creada, pero no se pudo enviar el email: ${response.email_error}`
+            : 'Propuesta creada, pero no se pudo enviar el email.'
+        );
       } else {
         setDetailFeedback(null);
         showTemporaryDetailSuccess('Propuesta creada correctamente.');
