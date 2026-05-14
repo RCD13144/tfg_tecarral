@@ -17,14 +17,19 @@ export function MachineCard({
   onPress: () => void;
 }) {
   const imageSource = getMachineImageSource(item);
+  const hasBackgroundImage = item.image_has_background === true;
 
   return (
     <Pressable onPress={onPress} style={[homeStyles.machineCard, { width }]}>
       <View style={homeStyles.machineMedia}>
         {imageSource ? (
-          <View style={homeStyles.machineImageFrame}>
+          hasBackgroundImage ? (
+            <View style={homeStyles.machineImageFrame}>
+              <ExpoImage contentFit="contain" source={imageSource} style={homeStyles.machineImage} />
+            </View>
+          ) : (
             <ExpoImage contentFit="contain" source={imageSource} style={homeStyles.machineImage} />
-          </View>
+          )
         ) : (
           <Ionicons color={AppColors.primary50} name="image-outline" size={34} />
         )}

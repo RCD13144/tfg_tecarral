@@ -216,7 +216,7 @@ export async function uploadMachineImage(idMaquina, { buffer, fileName, mimeType
     previousImagePath: maquina.image_path,
   });
 
-  await updateMachineImagePath(idMaquina, imagePath);
+  await updateMachineImagePath(idMaquina, imagePath, true);
 
   return getMaquinaById(idMaquina);
 }

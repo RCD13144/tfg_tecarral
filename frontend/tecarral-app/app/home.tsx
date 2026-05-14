@@ -226,6 +226,7 @@ export default function HomeScreen() {
           machineEditSubmitting={home.machineEditSubmitting}
           machineEditTipoOpen={home.machineEditTipoOpen}
           machineImageSource={home.machineImageSource}
+          machineImageHasBackground={home.machineImageHasBackground}
           machineMotorOptions={home.machineMotorOptions}
           machineSeguroOptions={home.machineSeguroOptions}
           machineTipoOptions={home.machineTipoOptions}
