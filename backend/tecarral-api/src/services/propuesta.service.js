@@ -140,6 +140,7 @@ export async function crearPropuestaIntoDB(body) {
   } catch (e) {
     emailSent = false;
     emailError = e?.message ?? "Error enviando email";
+    console.error("[crearPropuestaIntoDB] error enviando email de propuesta:", e);
   }
 
   return {

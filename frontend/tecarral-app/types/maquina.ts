@@ -82,6 +82,9 @@ export interface MachineProposalSummary {
   fecha_inicio: string;
   fecha_fin: string;
   precio: number;
+  public_url?: string;
+  email_sent?: boolean;
+  email_error?: string | null;
 }
 
 export interface ProposalFormData {
