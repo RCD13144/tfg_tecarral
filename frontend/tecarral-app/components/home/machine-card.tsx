@@ -22,7 +22,9 @@ export function MachineCard({
     <Pressable onPress={onPress} style={[homeStyles.machineCard, { width }]}>
       <View style={homeStyles.machineMedia}>
         {imageSource ? (
-          <ExpoImage contentFit="contain" source={imageSource} style={homeStyles.machineImage} />
+          <View style={homeStyles.machineImageFrame}>
+            <ExpoImage contentFit="contain" source={imageSource} style={homeStyles.machineImage} />
+          </View>
         ) : (
           <Ionicons color={AppColors.primary50} name="image-outline" size={34} />
         )}

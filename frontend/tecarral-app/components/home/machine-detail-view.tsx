@@ -185,7 +185,9 @@ export function MachineDetailView({
           <Ionicons color={AppColors.primary} name="close-circle-outline" size={28} />
         </Pressable>
         {machineImageSource ? (
-          <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
+          <View style={homeStyles.detailImageFrame}>
+            <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
+          </View>
         ) : (
           <Ionicons color={AppColors.primary50} name="image-outline" size={42} />
         )}
