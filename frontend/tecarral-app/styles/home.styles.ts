@@ -184,9 +184,18 @@ export const homeStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  machineImageFrame: {
+    width: '88%',
+    height: 96,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#EAF6FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   machineImage: {
     width: '100%',
-    height: 96,
+    height: '100%',
   },
   machineInfo: {
     paddingHorizontal: 10,
@@ -216,6 +225,16 @@ export const homeStyles = StyleSheet.create({
     marginBottom: 18,
     overflow: 'hidden',
   },
+  detailImageFrame: {
+    width: '78%',
+    maxWidth: 360,
+    height: 220,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: '#EAF6FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   detailCloseButton: {
     position: 'absolute',
     top: 18,
@@ -226,7 +245,7 @@ export const homeStyles = StyleSheet.create({
   },
   detailImage: {
     width: '100%',
-    height: 250,
+    height: '100%',
   },
   detailTitle: {
     color: AppColors.primary,

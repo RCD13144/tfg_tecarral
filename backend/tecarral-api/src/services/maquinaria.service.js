@@ -208,7 +208,7 @@ export async function uploadMachineImage(idMaquina, { buffer, fileName, mimeType
     throw err;
   }
 
-  const imagePath = storeMachineImage({
+  const imagePath = await storeMachineImage({
     idMaquina,
     buffer,
     fileName,

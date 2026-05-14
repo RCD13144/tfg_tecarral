@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
 
 const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 
@@ -81,7 +82,7 @@ export function deleteStoredMachineImage(relativePath) {
   }
 }
 
-export function storeMachineImage({
+export async function storeMachineImage({
   idMaquina,
   buffer,
   fileName,
@@ -98,10 +99,27 @@ export function storeMachineImage({
 
   ensureMachineImagesDirectory();
 
-  const nextRelativePath = buildMachineImageRelativePath(idMaquina, extension);
+  let optimizedBuffer;
+
+  try {
+    optimizedBuffer = await sharp(buffer)
+      .rotate()
+      .webp({
+        quality: 82,
+        effort: 4,
+        alphaQuality: 90,
+      })
+      .toBuffer();
+  } catch {
+    const error = new Error("No se pudo procesar la imagen subida");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const nextRelativePath = buildMachineImageRelativePath(idMaquina, "webp");
   const nextAbsolutePath = buildMachineImageAbsolutePath(nextRelativePath);
 
-  fs.writeFileSync(nextAbsolutePath, buffer);
+  fs.writeFileSync(nextAbsolutePath, optimizedBuffer);
 
   if (previousImagePath && previousImagePath !== nextRelativePath) {
     deleteStoredMachineImage(previousImagePath);

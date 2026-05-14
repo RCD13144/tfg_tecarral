@@ -47,7 +47,7 @@ export const FILTER_DEFINITIONS: {
       { label: 'Barredoras', value: 'Barredora' },
       { label: 'Plataformas articuladas', value: 'Plataforma artic.' },
       { label: 'Fregadoras', value: 'Fregadora' },
-      { label: 'Transpaletas eléctricas', value: 'Transpaleta electrica' },
+      { label: 'Transpaletas eléctricas', value: 'Transpaleta eléctr.' },
       { label: 'Preparapedidos', value: 'Preparapedidos' },
       { label: 'Transpaletas manuales', value: 'Transpaleta manual' },
       { label: 'Criógenas', value: 'Criogena' },
