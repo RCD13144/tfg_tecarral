@@ -32,7 +32,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./uploads:/app/uploads
+      - ../../uploads:/app/uploads
       - ../../frontend/tecarral-app/assets/machines:/seed-assets/machines:ro
       - ../../frontend/tecarral-app/constants/machine-images.ts:/seed-assets/machine-images.ts:ro
     ports:

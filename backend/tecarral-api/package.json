@@ -14,6 +14,7 @@
     "dev": "nodemon --legacy-watch src/server.js",
     "start": "node src/server.js",
     "migrate": "node src/migrations/runMigrations.js",
+    "seed:maquinaria": "node src/scripts/seedMaquinaria.js",
     "bootstrap:admin": "node src/scripts/bootstrapAdmin.js",
     "import:machine-images": "node src/scripts/importMachineImages.js"
   },

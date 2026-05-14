@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import fs from "fs";
 import path from "path";
 import pg from "pg";
@@ -106,12 +108,13 @@ async function main() {
     );
 
     let imported = 0;
-    let skipped = 0;
-    let missing = 0;
+    let skippedExisting = 0;
+    let missingMatch = 0;
+    let missingAsset = 0;
 
     for (const row of result.rows) {
       if (row.image_path && !overwrite) {
-        skipped += 1;
+        skippedExisting += 1;
         continue;
       }
 
@@ -119,14 +122,14 @@ async function main() {
       const sourceFileName = imageMap.get(normalizedKey);
 
       if (!sourceFileName) {
-        missing += 1;
+        missingMatch += 1;
         continue;
       }
 
       const sourcePath = path.join(assetsDir, sourceFileName);
 
       if (!fs.existsSync(sourcePath)) {
-        missing += 1;
+        missingAsset += 1;
         continue;
       }
 
@@ -149,7 +152,7 @@ async function main() {
     }
 
     console.log(
-      `Importación de imágenes completada. Importadas: ${imported}, omitidas: ${skipped}, sin match: ${missing}.`
+      `Importación de imágenes completada. Importadas: ${imported}, omitidas por imagen existente: ${skippedExisting}, sin coincidencia por modelo: ${missingMatch}, asset ausente: ${missingAsset}.`
     );
   } finally {
     await client.end();

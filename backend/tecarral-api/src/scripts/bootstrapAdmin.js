@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import pg from "pg";
 import { hashPassword } from "../utils/password.js";
 
