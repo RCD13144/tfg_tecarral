@@ -34,3 +34,21 @@ export function createMachineProposal(
     }
   );
 }
+
+export function updateMachineProposal(idPropuesta: number, data: ProposalFormData, token: string) {
+  return apiRequest<MachineProposalSummary>(`/propuestas/${idPropuesta}`, {
+    method: 'PATCH',
+    token,
+    body: {
+      cliente: data.cliente,
+      email_cliente: data.email_cliente,
+      telefono: data.telefono,
+      direccion: data.direccion,
+      cp: data.cp,
+      poblacion: data.poblacion,
+      precio: Number(data.precio),
+      fecha_inicio: data.fecha_inicio,
+      fecha_fin: data.fecha_fin,
+    },
+  });
+}

@@ -3,6 +3,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { SelectorField } from '@/components/home/selector-field';
+import { ScreenHeader } from '@/components/shared/screen-header';
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
 import type { MachineCreateFormData } from '@/types/maquina';
@@ -28,6 +29,7 @@ export function CreateMachineFormView({
   onToggleElevationLibre,
   onPickImageFromLibrary,
   onTakePhoto,
+  onOpenHelp,
   onRequestScrollToFocusedInput,
 }: {
   form: MachineCreateFormData;
@@ -53,12 +55,15 @@ export function CreateMachineFormView({
   onToggleElevationLibre: () => void;
   onPickImageFromLibrary: () => void;
   onTakePhoto: () => void;
+  onOpenHelp: () => void;
   onRequestScrollToFocusedInput?: () => void;
 }) {
   const isElevation = form.tipo === 'elevacion';
 
   return (
     <View style={homeStyles.detailContainer}>
+      <ScreenHeader onHelpPress={onOpenHelp} />
+
       <Pressable onPress={onBack} style={homeStyles.formBackButton}>
         <Ionicons color={AppColors.primary} name="arrow-back" size={22} />
         <Text style={homeStyles.formBackButtonText}>Volver al listado</Text>

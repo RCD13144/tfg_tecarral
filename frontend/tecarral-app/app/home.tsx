@@ -240,6 +240,7 @@ export default function HomeScreen() {
           onCancelMachineEdit={home.handleCancelMachineEdit}
           onOpenMachineEdit={home.handleOpenMachineEdit}
           onOpenNavigation={() => void home.openNavigationOptions()}
+          onOpenProposalDetail={home.openProposalDetail}
           onOpenProposalForm={home.openProposalForm}
           onOpenRepairBudgetForm={home.openRepairBudgetForm}
           onPickMachineEditImageFromLibrary={() => void home.pickMachineImage('library', 'edit')}
@@ -284,14 +285,17 @@ export default function HomeScreen() {
     if (home.homeSubview === 'proposalForm') {
       return (
         <ProposalFormView
+          mode={home.selectedProposal ? 'edit' : 'create'}
           onBack={() => home.setHomeSubview('detail')}
           onChangeField={home.updateProposalForm}
+          onOpenHelp={() => setHelpOpen(true)}
           onRequestScrollToFocusedInput={scrollFocusedInputIntoView}
           onSubmit={() => void home.handleCreateProposal()}
           proposalFeedback={home.proposalFeedback}
           proposalForm={home.proposalForm}
           proposalSubmitting={home.proposalSubmitting}
           selectedMachineDetail={home.selectedMachineDetail}
+          selectedProposal={home.selectedProposal}
         />
       );
     }
@@ -301,6 +305,7 @@ export default function HomeScreen() {
         <RepairBudgetFormView
           onBack={() => home.setHomeSubview('detail')}
           onChangeField={home.updateRepairBudgetForm}
+          onOpenHelp={() => setHelpOpen(true)}
           onRequestScrollToFocusedInput={scrollFocusedInputIntoView}
           onSubmit={() => void home.handleCreateRepairBudget()}
           proposalSummary={home.acceptedProposal}
@@ -323,6 +328,7 @@ export default function HomeScreen() {
           motorOptions={home.machineMotorOptions}
           onBack={home.resetToListView}
           onChangeField={home.updateMachineCreateForm}
+          onOpenHelp={() => setHelpOpen(true)}
           onPickImageFromLibrary={() => void home.pickMachineImage('library')}
           onRequestScrollToFocusedInput={scrollFocusedInputIntoView}
           onSubmit={() => void home.handleCreateMachine()}

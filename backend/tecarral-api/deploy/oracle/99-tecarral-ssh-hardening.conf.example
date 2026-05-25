@@ -1,0 +1,12 @@
+# Copy to:
+#   /etc/ssh/sshd_config.d/99-tecarral-ssh-hardening.conf
+# Then validate and reload:
+#   sudo sshd -t
+#   sudo systemctl reload ssh
+
+PasswordAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+UsePAM yes

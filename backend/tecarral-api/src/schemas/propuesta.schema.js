@@ -1,29 +1,21 @@
-function toTrimmedText(v) {
-  return String(v ?? "").trim();
-}
-
-function isValidEmail(email) {
-  const patron = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return patron.test(email);
-}
-
-function isValidSpanishPhone(phone) {
-  const patron = /^(?:\+34|0034|34)?[ -]?[6789]\d{2}[ -]?\d{2}[ -]?\d{2}[ -]?\d{2}$/;
-  return patron.test(phone);
-}
+import {
+  isSimpleEmailValid,
+  isSimplePhoneValid,
+  toTrimmedText,
+} from "./validation.schema.js";
 
 function isValidISODateTime(value) {
-  const s = toTrimmedText(value);
+  const text = toTrimmedText(value);
 
-  const patron =
+  const pattern =
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+\-]\d{2}:\d{2})?$/;
 
-  if (!patron.test(s)) {
+  if (!pattern.test(text)) {
     return false;
   }
 
-  const d = new Date(s);
-  return !Number.isNaN(d.getTime());
+  const date = new Date(text);
+  return !Number.isNaN(date.getTime());
 }
 
 function toEpochMs(iso) {
@@ -34,16 +26,16 @@ export function validatePropuestaCreate(body) {
   const errors = [];
 
   const idMaquina = Number(toTrimmedText(body?.id_maquina));
-  if (!Number.isInteger(idMaquina) || idMaquina <= 0) errors.push("id_maquina inválido");
+  if (!Number.isInteger(idMaquina) || idMaquina <= 0) errors.push("id_maquina invalido");
 
   const cliente = toTrimmedText(body?.cliente);
   if (cliente.length === 0) errors.push("cliente requerido");
 
   const emailCliente = toTrimmedText(body?.email_cliente);
-  if (!isValidEmail(emailCliente)) errors.push("email_cliente inválido");
+  if (!isSimpleEmailValid(emailCliente)) errors.push("email_cliente invalido");
 
   const telefono = toTrimmedText(body?.telefono);
-  if (!isValidSpanishPhone(telefono)) errors.push("telefono inválido");
+  if (!isSimplePhoneValid(telefono)) errors.push("telefono invalido");
 
   const direccion = toTrimmedText(body?.direccion);
   const cp = toTrimmedText(body?.cp);
@@ -54,7 +46,7 @@ export function validatePropuestaCreate(body) {
   if (poblacion.length === 0) errors.push("poblacion requerida");
 
   const precio = Number(toTrimmedText(body?.precio));
-  if (!Number.isFinite(precio) || precio <= 0) errors.push("precio inválido");
+  if (!Number.isFinite(precio) || precio <= 0) errors.push("precio invalido");
 
   const fechaInicio = toTrimmedText(body?.fecha_inicio);
   const fechaFin = toTrimmedText(body?.fecha_fin);
@@ -62,8 +54,8 @@ export function validatePropuestaCreate(body) {
   const fechaInicioOk = isValidISODateTime(fechaInicio);
   const fechaFinOk = isValidISODateTime(fechaFin);
 
-  if (!fechaInicioOk) errors.push("fecha_inicio inválida (ISO: YYYY-MM-DDTHH:mm[:ss][Z|+hh:mm])");
-  if (!fechaFinOk) errors.push("fecha_fin inválida (ISO: YYYY-MM-DDTHH:mm[:ss][Z|+hh:mm])");
+  if (!fechaInicioOk) errors.push("fecha_inicio invalida (ISO: YYYY-MM-DDTHH:mm[:ss][Z|+hh:mm])");
+  if (!fechaFinOk) errors.push("fecha_fin invalida (ISO: YYYY-MM-DDTHH:mm[:ss][Z|+hh:mm])");
 
   if (fechaInicioOk && fechaFinOk) {
     const ini = toEpochMs(fechaInicio);
@@ -74,30 +66,20 @@ export function validatePropuestaCreate(body) {
     }
   }
 
-  if (fechaInicioOk) {
-    const actualDate = Date.now();
-    const fechaInicioMs = toEpochMs(fechaInicio);
-
-    if (fechaInicioMs < actualDate) {
-      errors.push("fecha_inicio debe ser mayor a la fecha actual");
-    }
-  }
-
   const ok = errors.length === 0;
-
   const data = ok
     ? {
-      id_maquina: idMaquina,
-      cliente,
-      email_cliente: emailCliente,
-      telefono,
-      direccion,
-      cp,
-      poblacion,
-      precio,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
-    }
+        id_maquina: idMaquina,
+        cliente,
+        email_cliente: emailCliente,
+        telefono,
+        direccion,
+        cp,
+        poblacion,
+        precio,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+      }
     : null;
 
   return { ok, data, errors };
@@ -121,55 +103,55 @@ export function validatePropuestaUpdate(body) {
 
   const incomingKeys = Object.keys(body ?? {});
   for (let i = 0; i < incomingKeys.length; i += 1) {
-    const k = incomingKeys[i];
-    if (!allowedKeys.includes(k)) {
-      errors.push(`Campo no editable: ${k}`);
+    const key = incomingKeys[i];
+    if (!allowedKeys.includes(key)) {
+      errors.push(`Campo no editable: ${key}`);
     }
   }
 
   if (incomingKeys.length === 0) {
-    errors.push("Body vacío: no hay campos para editar");
+    errors.push("Body vacio: no hay campos para editar");
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "cliente")) {
     const cliente = toTrimmedText(body?.cliente);
-    if (cliente.length === 0) errors.push("cliente inválido");
+    if (cliente.length === 0) errors.push("cliente invalido");
     else data.cliente = cliente;
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "email_cliente")) {
     const email = toTrimmedText(body?.email_cliente);
-    if (!isValidEmail(email)) errors.push("email_cliente inválido");
+    if (!isSimpleEmailValid(email)) errors.push("email_cliente invalido");
     else data.email_cliente = email;
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "telefono")) {
-    const tel = toTrimmedText(body?.telefono);
-    if (!isValidSpanishPhone(tel)) errors.push("telefono inválido");
-    else data.telefono = tel;
+    const telefono = toTrimmedText(body?.telefono);
+    if (!isSimplePhoneValid(telefono)) errors.push("telefono invalido");
+    else data.telefono = telefono;
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "direccion")) {
     const direccion = toTrimmedText(body?.direccion);
-    if (direccion.length === 0) errors.push("direccion inválida");
+    if (direccion.length === 0) errors.push("direccion invalida");
     else data.direccion = direccion;
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "cp")) {
     const cp = toTrimmedText(body?.cp);
-    if (cp.length === 0) errors.push("cp inválido");
+    if (cp.length === 0) errors.push("cp invalido");
     else data.cp = cp;
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "poblacion")) {
     const poblacion = toTrimmedText(body?.poblacion);
-    if (poblacion.length === 0) errors.push("poblacion inválida");
+    if (poblacion.length === 0) errors.push("poblacion invalida");
     else data.poblacion = poblacion;
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "precio")) {
     const precio = Number(toTrimmedText(body?.precio));
-    if (!Number.isFinite(precio) || precio <= 0) errors.push("precio inválido");
+    if (!Number.isFinite(precio) || precio <= 0) errors.push("precio invalido");
     else data.precio = precio;
   }
 
@@ -177,20 +159,22 @@ export function validatePropuestaUpdate(body) {
   let fechaFin = null;
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "fecha_inicio")) {
-    const fi = toTrimmedText(body?.fecha_inicio);
-    if (!isValidISODateTime(fi)) errors.push("fecha_inicio inválida (ISO datetime)");
-    else {
-      data.fecha_inicio = fi;
-      fechaInicio = fi;
+    const nextFechaInicio = toTrimmedText(body?.fecha_inicio);
+    if (!isValidISODateTime(nextFechaInicio)) {
+      errors.push("fecha_inicio invalida (ISO datetime)");
+    } else {
+      data.fecha_inicio = nextFechaInicio;
+      fechaInicio = nextFechaInicio;
     }
   }
 
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "fecha_fin")) {
-    const ff = toTrimmedText(body?.fecha_fin);
-    if (!isValidISODateTime(ff)) errors.push("fecha_fin inválida (ISO datetime)");
-    else {
-      data.fecha_fin = ff;
-      fechaFin = ff;
+    const nextFechaFin = toTrimmedText(body?.fecha_fin);
+    if (!isValidISODateTime(nextFechaFin)) {
+      errors.push("fecha_fin invalida (ISO datetime)");
+    } else {
+      data.fecha_fin = nextFechaFin;
+      fechaFin = nextFechaFin;
     }
   }
 
@@ -200,16 +184,6 @@ export function validatePropuestaUpdate(body) {
 
     if (fin <= ini) {
       errors.push("fecha_fin debe ser mayor que fecha_inicio");
-    }
-  }
-
-  const actualDate = Date.now();
-
-  if (fechaInicio !== null) {
-    const fechaInicioMs = toEpochMs(fechaInicio);
-
-    if (fechaInicioMs < actualDate) {
-      errors.push("fecha_inicio debe ser mayor a la fecha actual");
     }
   }
 
@@ -223,13 +197,13 @@ export function validateExpireQuery(query) {
   let limit = 500;
 
   if (query?.limit !== undefined) {
-    const n = Number(String(query.limit).trim());
-    const ok = Number.isInteger(n) && n > 0 && n <= 5000;
+    const nextLimit = Number(String(query.limit).trim());
+    const ok = Number.isInteger(nextLimit) && nextLimit > 0 && nextLimit <= 5000;
 
     if (!ok) {
-      errors.push("limit inválido (1..5000)");
+      errors.push("limit invalido (1..5000)");
     } else {
-      limit = n;
+      limit = nextLimit;
     }
   }
 

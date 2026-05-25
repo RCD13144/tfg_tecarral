@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { DateTimePickerField } from '@/components/home/date-time-picker-field';
 import { FieldRow } from '@/components/home/field-row';
+import { ScreenHeader } from '@/components/shared/screen-header';
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
 import type { MachineDetail, MachineProposalSummary } from '@/types/maquina';
@@ -17,6 +18,7 @@ export function RepairBudgetFormView({
   repairBudgetSubmitting,
   onBack,
   onChangeField,
+  onOpenHelp,
   onRequestScrollToFocusedInput,
   onSubmit,
 }: {
@@ -30,6 +32,7 @@ export function RepairBudgetFormView({
     key: K,
     value: RepairBudgetFormData[K]
   ) => void;
+  onOpenHelp: () => void;
   onRequestScrollToFocusedInput?: () => void;
   onSubmit: () => void;
 }) {
@@ -52,6 +55,8 @@ export function RepairBudgetFormView({
 
   return (
     <View style={homeStyles.detailContainer}>
+      <ScreenHeader onHelpPress={onOpenHelp} />
+
       <Pressable onPress={onBack} style={homeStyles.formBackButton}>
         <Ionicons color={AppColors.primary} name="arrow-back" size={22} />
         <Text style={homeStyles.formBackButtonText}>Volver al detalle</Text>

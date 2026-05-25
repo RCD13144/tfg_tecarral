@@ -48,6 +48,7 @@ export function MachineDetailView({
   proposalsExpanded,
   onToggleProposals,
   proposals,
+  onOpenProposalDetail,
   canCreateProposal,
   canOpenProposalForm,
   proposalButtonDisabledReason,
@@ -115,6 +116,7 @@ export function MachineDetailView({
   proposalsExpanded: boolean;
   onToggleProposals: () => void;
   proposals: MachineProposalSummary[];
+  onOpenProposalDetail: (proposal: MachineProposalSummary) => void;
   canCreateProposal: boolean;
   canOpenProposalForm: boolean;
   proposalButtonDisabledReason: string | null;
@@ -660,7 +662,13 @@ export function MachineDetailView({
           proposals.length === 0 ? (
             <Text style={homeStyles.sectionHint}>Todavía no hay propuestas registradas.</Text>
           ) : (
-            proposals.map((proposal) => <ProposalCard item={proposal} key={proposal.id} />)
+            proposals.map((proposal) => (
+              <ProposalCard
+                item={proposal}
+                key={proposal.id}
+                onPress={canCreateProposal ? onOpenProposalDetail : undefined}
+              />
+            ))
           )
         ) : null}
       </View>

@@ -17,7 +17,12 @@ export interface Maquina {
 }
 
 export type HomeTabKey = 'home' | 'albaran' | 'reparacion' | 'user';
-export type HomeSubview = 'list' | 'detail' | 'proposalForm' | 'repairBudgetForm' | 'createMachineForm';
+export type HomeSubview =
+  | 'list'
+  | 'detail'
+  | 'proposalForm'
+  | 'repairBudgetForm'
+  | 'createMachineForm';
 
 export type FilterCategoryKey =
   | 'availability'
@@ -77,8 +82,11 @@ export interface MachineProposalSummary {
   id: number;
   id_maquina: number;
   cliente: string;
+  email_cliente?: string;
+  telefono?: string;
   estado: string;
   direccion: string;
+  cp?: string;
   poblacion: string;
   fecha_inicio: string;
   fecha_fin: string;
