@@ -1,15 +1,17 @@
+import { isSimpleEmailValid, toTrimmedText } from "./validation.schema.js";
+
 export function validateLoginBody(body) {
   const errors = [];
 
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
+  const email = toTrimmedText(body?.email);
   const password = typeof body?.password === "string" ? body.password : "";
 
   if (!email) {
     errors.push("email es obligatorio");
   }
 
-  if (email && !email.includes("@")) {
-    errors.push("email no es válido");
+  if (email && !isSimpleEmailValid(email)) {
+    errors.push("email no es valido");
   }
 
   if (!password) {
@@ -26,8 +28,7 @@ export function validateLoginBody(body) {
 export function validateChangeTemporaryPasswordBody(body) {
   const errors = [];
 
-  const newPassword =
-    typeof body?.newPassword === "string" ? body.newPassword : "";
+  const newPassword = typeof body?.newPassword === "string" ? body.newPassword : "";
 
   if (!newPassword) {
     errors.push("newPassword es obligatorio");

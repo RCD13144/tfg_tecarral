@@ -1,17 +1,18 @@
 import { ROLES } from "../constants/roles.js";
-
-function normalizePhone(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
+import {
+  isSimpleEmailValid,
+  isSimplePhoneValid,
+  toTrimmedText,
+} from "./validation.schema.js";
 
 export function validateCreateUserBody(body) {
   const errors = [];
 
-  const email = typeof body?.email === "string" ? body.email.trim() : "";
-  const nombre = typeof body?.nombre === "string" ? body.nombre.trim() : "";
-  const telefono = normalizePhone(body?.telefono);
+  const email = toTrimmedText(body?.email);
+  const nombre = toTrimmedText(body?.nombre);
+  const telefono = toTrimmedText(body?.telefono);
 
-  const roleRaw = typeof body?.role === "string" ? body.role.trim() : "";
+  const roleRaw = toTrimmedText(body?.role);
   const hasRole = roleRaw.length > 0;
 
   let role = ROLES.TECNICO;
@@ -30,7 +31,7 @@ export function validateCreateUserBody(body) {
     errors.push("email es obligatorio");
   }
 
-  if (email && !email.includes("@")) {
+  if (email && !isSimpleEmailValid(email)) {
     errors.push("email no es valido");
   }
 
@@ -38,7 +39,7 @@ export function validateCreateUserBody(body) {
     errors.push("telefono es obligatorio");
   }
 
-  if (telefono && telefono.length !== 9) {
+  if (telefono && !isSimplePhoneValid(telefono)) {
     errors.push("El telefono debe tener 9 caracteres");
   }
 
@@ -63,13 +64,13 @@ export function validateCreateUserBody(body) {
 
 export function validateUpdateMeBody(body) {
   const errors = [];
-  const telefono = normalizePhone(body?.telefono);
+  const telefono = toTrimmedText(body?.telefono);
 
   if (!telefono) {
     errors.push("telefono es obligatorio");
   }
 
-  if (telefono && telefono.length !== 9) {
+  if (telefono && !isSimplePhoneValid(telefono)) {
     errors.push("El telefono debe tener 9 caracteres");
   }
 

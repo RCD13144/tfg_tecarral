@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/", requireAuth, getPropuestas);
 router.post("/", requireAuth, requireRole("admin"), crearPropuesta);
-router.patch("/:id", requireAuth, editarPropuesta);
-router.delete("/:id", requireAuth, deletePropuesta);
-router.post("/expire", requireAuth, expirePropuestas);
+router.patch("/:id", requireAuth, requireRole("admin"), editarPropuesta);
+router.delete("/:id", requireAuth, requireRole("admin"), deletePropuesta);
+router.post("/expire", requireAuth, requireRole("admin"), expirePropuestas);
 export default router;

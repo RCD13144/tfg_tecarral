@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { DateTimePickerField } from '@/components/home/date-time-picker-field';
 import { FieldRow } from '@/components/home/field-row';
+import { ScreenHeader } from '@/components/shared/screen-header';
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
 import type { MachineDetail, ProposalFormData } from '@/types/maquina';
@@ -10,19 +11,25 @@ import { formatLocationLabel, formatMachineName } from '@/utils/home-format';
 
 export function ProposalFormView({
   selectedMachineDetail,
+  selectedProposal,
+  mode,
   proposalFeedback,
   proposalForm,
   onBack,
   onChangeField,
+  onOpenHelp,
   onRequestScrollToFocusedInput,
   onSubmit,
   proposalSubmitting,
 }: {
   selectedMachineDetail: MachineDetail | null;
+  selectedProposal: { id: number; estado: string } | null;
+  mode: 'create' | 'edit';
   proposalFeedback: string | null;
   proposalForm: ProposalFormData;
   onBack: () => void;
   onChangeField: <K extends keyof ProposalFormData>(key: K, value: ProposalFormData[K]) => void;
+  onOpenHelp: () => void;
   onRequestScrollToFocusedInput?: () => void;
   onSubmit: () => void;
   proposalSubmitting: boolean;
@@ -37,12 +44,16 @@ export function ProposalFormView({
 
   return (
     <View style={homeStyles.detailContainer}>
+      <ScreenHeader onHelpPress={onOpenHelp} />
+
       <Pressable onPress={onBack} style={homeStyles.formBackButton}>
         <Ionicons color={AppColors.primary} name="arrow-back" size={22} />
         <Text style={homeStyles.formBackButtonText}>Volver al detalle</Text>
       </Pressable>
 
-      <Text style={homeStyles.detailTitle}>Nueva propuesta</Text>
+      <Text style={homeStyles.detailTitle}>
+        {mode === 'edit' ? `Editar propuesta #${selectedProposal?.id ?? ''}` : 'Nueva propuesta'}
+      </Text>
 
       <View style={homeStyles.proposalSummaryCard}>
         <Text style={homeStyles.proposalSummaryTitle}>Máquina seleccionada</Text>
@@ -55,6 +66,7 @@ export function ProposalFormView({
           value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)}
         />
         <FieldRow label="Disponibilidad" value={selectedMachineDetail.availability_status} />
+        {mode === 'edit' ? <FieldRow label="Estado propuesta" value={selectedProposal?.estado} /> : null}
       </View>
 
       {proposalFeedback ? <Text style={homeStyles.feedbackText}>{proposalFeedback}</Text> : null}
@@ -134,7 +146,7 @@ export function ProposalFormView({
         onPress={onSubmit}
         style={[homeStyles.primaryActionButton, proposalSubmitting && homeStyles.actionButtonDisabled]}>
         <Text style={homeStyles.primaryActionButtonText}>
-          {proposalSubmitting ? 'Guardando...' : 'Crear propuesta'}
+          {proposalSubmitting ? 'Guardando...' : mode === 'edit' ? 'Guardar cambios' : 'Crear propuesta'}
         </Text>
       </Pressable>
     </View>

@@ -12,6 +12,7 @@ import {
 } from '@/services/users-api';
 import type { AuthSession } from '@/types/auth';
 import type { ChangePasswordForm, CreateUserForm, UserListItem, UserProfileForm } from '@/types/user';
+import { isSimpleEmailValid, isSimplePhoneValid, normalizeInputText } from '@/utils/validation';
 
 const EMPTY_CREATE_USER_FORM: CreateUserForm = {
   email: '',
@@ -175,6 +176,16 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
       return;
     }
 
+    if (!normalizeInputText(profileForm.telefono)) {
+      setProfileFeedback('Introduce el teléfono.');
+      return;
+    }
+
+    if (!isSimplePhoneValid(profileForm.telefono)) {
+      setProfileFeedback('El teléfono debe tener 9 caracteres.');
+      return;
+    }
+
     if (!profileForm.telefono.trim()) {
       setProfileFeedback('Introduce el telefono.');
       return;
@@ -191,7 +202,7 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
 
       const updatedUser = await updateMeProfile(
         {
-          telefono: profileForm.telefono.trim(),
+          telefono: normalizeInputText(profileForm.telefono),
         },
         session.token
       );
@@ -260,6 +271,31 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
       return;
     }
 
+    if (!normalizeInputText(createUserForm.email)) {
+      setCreateUserFeedback('Introduce el email.');
+      return;
+    }
+
+    if (!isSimpleEmailValid(createUserForm.email)) {
+      setCreateUserFeedback('Introduce un email válido.');
+      return;
+    }
+
+    if (!normalizeInputText(createUserForm.nombre)) {
+      setCreateUserFeedback('Introduce el nombre.');
+      return;
+    }
+
+    if (!normalizeInputText(createUserForm.telefono)) {
+      setCreateUserFeedback('Introduce el teléfono.');
+      return;
+    }
+
+    if (!isSimplePhoneValid(createUserForm.telefono)) {
+      setCreateUserFeedback('El teléfono debe tener 9 caracteres.');
+      return;
+    }
+
     if (!createUserForm.email.trim()) {
       setCreateUserFeedback('Introduce el email.');
       return;
@@ -286,9 +322,9 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
 
       const result = await registerUserByAdmin(
         {
-          email: createUserForm.email.trim(),
-          nombre: createUserForm.nombre.trim(),
-          telefono: createUserForm.telefono.trim(),
+          email: normalizeInputText(createUserForm.email),
+          nombre: normalizeInputText(createUserForm.nombre),
+          telefono: normalizeInputText(createUserForm.telefono),
           role: createUserForm.role,
         },
         session.token

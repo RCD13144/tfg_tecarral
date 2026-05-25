@@ -28,7 +28,11 @@ import {
   updateMachineMaintenanceStatus,
 } from '@/services/maquinas-api';
 import { createRepairBudget } from '@/services/presupuestos-reparacion-api';
-import { createMachineProposal, getMachineProposals } from '@/services/propuestas-api';
+import {
+  createMachineProposal,
+  getMachineProposals,
+  updateMachineProposal,
+} from '@/services/propuestas-api';
 import type { AuthSession } from '@/types/auth';
 import type { NavigationAppOption } from '@/types/home';
 import type {
@@ -52,6 +56,7 @@ import {
   getMachineImageSource,
   machineMatchesFilters,
 } from '@/utils/home-format';
+import { isSimpleEmailValid, isSimplePhoneValid, normalizeInputText } from '@/utils/validation';
 
 export function useHomeScreen(session: AuthSession | null) {
   const { signOut } = useAuth();
@@ -87,6 +92,7 @@ export function useHomeScreen(session: AuthSession | null) {
   const [locationActionLoading, setLocationActionLoading] = useState(false);
   const [statusActionLoading, setStatusActionLoading] = useState(false);
   const [proposalForm, setProposalForm] = useState<ProposalFormData>(EMPTY_PROPOSAL_FORM);
+  const [selectedProposal, setSelectedProposal] = useState<MachineProposalSummary | null>(null);
   const [proposalSubmitting, setProposalSubmitting] = useState(false);
   const [proposalFeedback, setProposalFeedback] = useState<string | null>(null);
   const [repairBudgetForm, setRepairBudgetForm] =
@@ -548,6 +554,8 @@ export function useHomeScreen(session: AuthSession | null) {
 
   function resetToListView() {
     setHomeSubview('list');
+    setSelectedProposal(null);
+    setProposalForm(EMPTY_PROPOSAL_FORM);
     setDetailFeedback(null);
     setProposalFeedback(null);
     setRepairBudgetFeedback(null);
@@ -585,7 +593,34 @@ export function useHomeScreen(session: AuthSession | null) {
     if (!canOpenProposalForm) {
       return;
     }
+    setSelectedProposal(null);
     setProposalForm(EMPTY_PROPOSAL_FORM);
+    setProposalFeedback(null);
+    setRepairBudgetFeedback(null);
+    setHomeSubview('proposalForm');
+  }
+
+  function buildProposalFormFromSummary(proposal: MachineProposalSummary): ProposalFormData {
+    return {
+      cliente: String(proposal.cliente ?? ''),
+      email_cliente: String(proposal.email_cliente ?? ''),
+      telefono: String(proposal.telefono ?? ''),
+      direccion: String(proposal.direccion ?? ''),
+      cp: String(proposal.cp ?? ''),
+      poblacion: String(proposal.poblacion ?? ''),
+      precio: String(proposal.precio ?? ''),
+      fecha_inicio: String(proposal.fecha_inicio ?? ''),
+      fecha_fin: String(proposal.fecha_fin ?? ''),
+    };
+  }
+
+  function openProposalDetail(proposal: MachineProposalSummary) {
+    if (String(proposal.estado ?? '').trim().toUpperCase() !== 'PENDING') {
+      return;
+    }
+
+    setSelectedProposal(proposal);
+    setProposalForm(buildProposalFormFromSummary(proposal));
     setProposalFeedback(null);
     setRepairBudgetFeedback(null);
     setHomeSubview('proposalForm');
@@ -693,6 +728,11 @@ export function useHomeScreen(session: AuthSession | null) {
   }
 
   function validateProposalForm() {
+    if (!normalizeInputText(proposalForm.cliente)) return 'Introduce el cliente.';
+    if (!normalizeInputText(proposalForm.email_cliente)) return 'Introduce el email del cliente.';
+    if (!isSimpleEmailValid(proposalForm.email_cliente)) return 'Introduce un email válido.';
+    if (!normalizeInputText(proposalForm.telefono)) return 'Introduce el teléfono del cliente.';
+    if (!isSimplePhoneValid(proposalForm.telefono)) return 'El teléfono debe tener 9 caracteres.';
     if (!proposalForm.cliente.trim()) return 'Introduce el cliente.';
     if (!proposalForm.email_cliente.trim()) return 'Introduce el email del cliente.';
     if (!proposalForm.telefono.trim()) return 'Introduce el telefono del cliente.';
@@ -788,15 +828,24 @@ export function useHomeScreen(session: AuthSession | null) {
       setProposalSubmitting(true);
       setProposalFeedback(null);
 
-      const response = await createMachineProposal(
-        selectedMachineDetail.id_maquina,
-        proposalForm,
-        session.token
-      );
+      const response = selectedProposal
+        ? await updateMachineProposal(selectedProposal.id, proposalForm, session.token)
+        : await createMachineProposal(
+            selectedMachineDetail.id_maquina,
+            proposalForm,
+            session.token
+          );
 
-      setSelectedMachineProposals((current) => [response, ...current]);
+      setSelectedMachineProposals((current) =>
+        selectedProposal
+          ? current.map((proposal) =>
+              proposal.id === response.id ? { ...proposal, ...response } : proposal
+            )
+          : [response, ...current]
+      );
+      setSelectedProposal(null);
       setHomeSubview('detail');
-      if (response.email_sent === false) {
+      if (!selectedProposal && response.email_sent === false) {
         setDetailFeedback(
           response.email_error?.trim()
             ? `Propuesta creada, pero no se pudo enviar el email: ${response.email_error}`
@@ -804,7 +853,9 @@ export function useHomeScreen(session: AuthSession | null) {
         );
       } else {
         setDetailFeedback(null);
-        showTemporaryDetailSuccess('Propuesta creada correctamente.');
+        showTemporaryDetailSuccess(
+          selectedProposal ? 'Propuesta actualizada correctamente.' : 'Propuesta creada correctamente.'
+        );
       }
       void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
     } catch (error) {
@@ -1290,6 +1341,7 @@ export function useHomeScreen(session: AuthSession | null) {
     incidenceComment,
     incidencePanelVisible,
     proposalForm,
+    selectedProposal,
     proposalSubmitting,
     proposalFeedback,
     repairBudgetForm,
@@ -1336,6 +1388,7 @@ export function useHomeScreen(session: AuthSession | null) {
     openMachineDetail,
     resetToListView,
     openProposalForm,
+    openProposalDetail,
     openCreateMachineForm,
     openRepairBudgetForm,
     updateProposalForm,

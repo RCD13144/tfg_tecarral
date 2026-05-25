@@ -65,8 +65,8 @@ export async function editarPropuesta(id, patch) {
   const finalFechaInicio = patch.fecha_inicio ?? propuesta.fecha_inicio;
   const finalFechaFin = patch.fecha_fin ?? propuesta.fecha_fin;
 
-  const ini = new Date(`${finalFechaInicio}T00:00:00Z`).getTime();
-  const fin = new Date(`${finalFechaFin}T00:00:00Z`).getTime();
+  const ini = new Date(finalFechaInicio).getTime();
+  const fin = new Date(finalFechaFin).getTime();
 
   if (fin <= ini) {
     throw createHttpError(400, "fecha_fin debe ser mayor que fecha_inicio");

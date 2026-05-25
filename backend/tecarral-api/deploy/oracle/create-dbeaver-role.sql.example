@@ -1,0 +1,43 @@
+-- Duplicate this file outside the repo or replace the placeholder values
+-- only on the target VM before running it.
+--
+-- Usage from the VM:
+-- docker compose --env-file .env.production -f docker-compose.prod.yml \
+--   exec -T postgres psql -U tecarral_user -d tecarral \
+--   -f /tmp/create-dbeaver-role.sql
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_roles
+    WHERE rolname = 'tecarral_dbeaver'
+  ) THEN
+    CREATE ROLE tecarral_dbeaver
+      LOGIN
+      PASSWORD 'REPLACE_WITH_A_LONG_UNIQUE_PASSWORD'
+      NOSUPERUSER
+      NOCREATEDB
+      NOCREATEROLE
+      NOINHERIT;
+  END IF;
+END $$;
+
+GRANT CONNECT ON DATABASE tecarral TO tecarral_dbeaver;
+GRANT USAGE ON SCHEMA public TO tecarral_dbeaver;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON ALL TABLES IN SCHEMA public
+TO tecarral_dbeaver;
+
+GRANT USAGE, SELECT, UPDATE
+ON ALL SEQUENCES IN SCHEMA public
+TO tecarral_dbeaver;
+
+ALTER DEFAULT PRIVILEGES FOR USER tecarral_user IN SCHEMA public
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON TABLES TO tecarral_dbeaver;
+
+ALTER DEFAULT PRIVILEGES FOR USER tecarral_user IN SCHEMA public
+GRANT USAGE, SELECT, UPDATE
+ON SEQUENCES TO tecarral_dbeaver;
