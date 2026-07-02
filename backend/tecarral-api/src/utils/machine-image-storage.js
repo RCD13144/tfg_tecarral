@@ -5,7 +5,10 @@ import sharp from "sharp";
 const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 
 export function getUploadsDirectory() {
-  return path.resolve(process.cwd(), "uploads");
+  const configuredDirectory = String(process.env.MACHINE_UPLOADS_DIR ?? "").trim();
+  return configuredDirectory
+    ? path.resolve(configuredDirectory)
+    : path.resolve(process.cwd(), "uploads");
 }
 
 export function getMachineImagesDirectory() {
@@ -135,11 +138,7 @@ export function buildPublicImageUrl(imagePath) {
     return null;
   }
 
-  const publicBaseUrl = String(process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/+$/, "");
-
-  if (!publicBaseUrl) {
-    return `/uploads/${cleanImagePath}`;
-  }
-
-  return `${publicBaseUrl}/uploads/${cleanImagePath}`;
+  // La app móvil reescribe esta ruta contra API_BASE_URL. Devolverla relativa evita
+  // que las imágenes apunten a la nube cuando se prueba contra un backend local.
+  return `/uploads/${cleanImagePath}`;
 }

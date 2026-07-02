@@ -68,6 +68,32 @@ export async function getAlbaranById(req, res) {
   }
 }
 
+export async function getAlbaranPdf(req, res) {
+  try {
+    const idAlbaran = parseId(req.params.id);
+
+    if (!validateId(idAlbaran)) {
+      res.status(400).json({ error: "Id de albarán inválido" });
+      return;
+    }
+
+    const idUser = getAuthUserId(req, res);
+    if (idUser === null) return;
+
+    const pdf = await albaranService.getAlbaranPdf({ idAlbaran, idUser });
+    const disposition = req.query?.download === "1" ? "attachment" : "inline";
+    const safeFilename = String(pdf.filename).replace(/["\r\n]/g, "");
+
+    res.setHeader("Content-Type", pdf.mimeType);
+    res.setHeader("Content-Disposition", `${disposition}; filename="${safeFilename}"`);
+    res.setHeader("Content-Length", pdf.content.length);
+    if (pdf.sha256) res.setHeader("X-Document-SHA256", pdf.sha256);
+    res.status(200).send(pdf.content);
+  } catch (e) {
+    res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error", meta: e.meta });
+  }
+}
+
 export async function firmarAlbaran(req, res) {
   try {
     const idAlbaran = parseId(req.params.id);

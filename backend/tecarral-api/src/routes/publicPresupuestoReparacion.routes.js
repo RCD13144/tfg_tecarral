@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import {
   verPresupuestoReparacionHtml,
   aceptarPresupuestoReparacion,
@@ -10,6 +10,7 @@ const router = Router();
 router.get("/presupuestos-reparacion/:token", verPresupuestoReparacionHtml);
 router.post(
   "/presupuestos-reparacion/:token/accept",
+  express.urlencoded({ extended: false, limit: "10mb" }),
   aceptarPresupuestoReparacion
 );
 router.post(

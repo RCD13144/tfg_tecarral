@@ -42,7 +42,7 @@ export async function aceptarPresupuestoReparacion(req, res) {
   try {
     const token = req.params.token;
     const html =
-      await publicPresupuestoReparacionService.accept(token);
+      await publicPresupuestoReparacionService.accept(token, req.body ?? {}, req.ip);
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.status(200).send(html);

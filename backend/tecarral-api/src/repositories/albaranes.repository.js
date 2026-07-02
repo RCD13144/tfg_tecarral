@@ -1,5 +1,6 @@
 import pool from "../config/db.js";
 import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
+import { ensureEntityDocumentNumberTx } from "./formalDocument.repository.js";
 
 function buildErr(statusCode, message, meta) {
   const err = new Error(message);
@@ -10,10 +11,29 @@ function buildErr(statusCode, message, meta) {
 
 const ALBARAN_SELECT_FIELDS = `
   id_albaran,
+  document_number,
+  document_kind,
   estado,
   firmado_at,
   id_maquina,
   propuesta_alquiler_id,
+  service_context_type,
+  service_context_id,
+  service_case_type,
+  service_visit_kind,
+  pricing_mode,
+  pricing_base_amount,
+  includes_travel,
+  estimated_work_minutes,
+  hours_start,
+  hours_end,
+  total_hours,
+  desplazamiento_text,
+  delivery_address,
+  delivery_phone,
+  payment_terms,
+  document_snapshot_html,
+  created_at,
   cliente,
   direccion,
   telefono,
@@ -85,7 +105,14 @@ export async function firmarAlbaranTx({
 
     const albRes = await client.query(
       `
-      SELECT id_albaran, id_user, id_maquina, estado, propuesta_alquiler_id
+      SELECT
+        id_albaran, document_number, document_kind, id_user, id_maquina,
+        estado, propuesta_alquiler_id, service_context_type, service_context_id,
+        service_case_type, service_visit_kind, pricing_mode, pricing_base_amount,
+        includes_travel, estimated_work_minutes, hours_start, hours_end, total_hours,
+        desplazamiento_text, delivery_address, delivery_phone, payment_terms,
+        cliente, email_cliente, telefono, direccion, cp, poblacion, observaciones,
+        created_at
       FROM public.albaran
       WHERE id_albaran = $1
       FOR UPDATE
@@ -100,7 +127,7 @@ export async function firmarAlbaranTx({
     const albaran = albRes.rows[0];
 
     if (albaran.estado !== "BORRADOR") {
-      throw buildErr(409, "El albarán no está en BORRADOR", {
+      throw buildErr(409, "El albarán ya está firmado y no se puede modificar", {
         idAlbaran,
         estado: albaran.estado,
       });
@@ -113,6 +140,13 @@ export async function firmarAlbaranTx({
         idUser,
       });
     }
+
+    albaran.document_number = await ensureEntityDocumentNumberTx(client, {
+      entityTable: "albaran",
+      entityIdColumn: "id_albaran",
+      entityId: idAlbaran,
+      documentType: "ALBARAN",
+    });
 
     const reparacionRes = await client.query(
       `
@@ -133,6 +167,10 @@ export async function firmarAlbaranTx({
       `,
       [albaran.id_maquina]
     );
+    const tecnicoRes = await client.query(
+      `SELECT nombre FROM public.users WHERE id_user = $1 LIMIT 1`,
+      [idUser]
+    );
 
     if (maqRes.rows.length === 0) {
       throw buildErr(404, "Máquina no encontrada para el albarán", {
@@ -149,19 +187,15 @@ export async function firmarAlbaranTx({
       reparacion.estado !== "TERMINADA" &&
       maquina.maintenance_status !== MAINTENANCE_STATUS.AVERIADA_GRAVE
     ) {
-      throw buildErr(
-        409,
-        "No se puede firmar el albarán: la máquina debe repararse antes",
-        {
-          idAlbaran,
-          id_reparacion: reparacion.id_reparacion,
-          reparacion_estado: reparacion.estado,
-          maintenance_status: maquina.maintenance_status,
-        }
-      );
+      throw buildErr(409, "No se puede firmar el albarán: la máquina debe repararse antes", {
+        idAlbaran,
+        id_reparacion: reparacion.id_reparacion,
+        reparacion_estado: reparacion.estado,
+        maintenance_status: maquina.maintenance_status,
+      });
     }
 
-    await client.query(
+    const signedRes = await client.query(
       `
       UPDATE public.albaran
       SET
@@ -173,12 +207,12 @@ export async function firmarAlbaranTx({
         estado = 'FIRMADO',
         firmado_at = NOW()
       WHERE id_albaran = $1
+      RETURNING firmado_at, observaciones
       `,
       [idAlbaran, observaciones, firmaCliente, firmaTecnico, firmaClienteMime, firmaTecnicoMime]
     );
 
     let reparacionUpdated = false;
-
     if (maquina.maintenance_status === MAINTENANCE_STATUS.AVERIADA_GRAVE) {
       const repUpdate = await client.query(
         `
@@ -190,43 +224,67 @@ export async function firmarAlbaranTx({
         `,
         [idAlbaran]
       );
-
       reparacionUpdated = repUpdate.rows.length > 0;
     }
 
-    // Email del cliente desde propuesta_alquiler (lo que pides)
-    const propRes = await client.query(
-      `
-      SELECT id, cliente, email_cliente, telefono, direccion, cp, poblacion
-      FROM public.propuesta_alquiler
-      WHERE id = $1
-      `,
-      [albaran.propuesta_alquiler_id]
-    );
+    let propuesta = {
+      id: albaran.propuesta_alquiler_id ?? null,
+      cliente: albaran.cliente,
+      email_cliente: albaran.email_cliente,
+      telefono: albaran.telefono,
+      direccion: albaran.direccion,
+      cp: albaran.cp,
+      poblacion: albaran.poblacion,
+    };
 
-    if (propRes.rows.length === 0) {
-      throw buildErr(404, "propuesta_alquiler no encontrada para el albarán", {
-        idAlbaran,
-        propuesta_alquiler_id: albaran.propuesta_alquiler_id,
-      });
+    if (albaran.propuesta_alquiler_id) {
+      const propRes = await client.query(
+        `
+        SELECT id, cliente, email_cliente, telefono, direccion, cp, poblacion
+        FROM public.propuesta_alquiler
+        WHERE id = $1
+        `,
+        [albaran.propuesta_alquiler_id]
+      );
+      if (propRes.rows[0]) propuesta = propRes.rows[0];
     }
-
-    const propuesta = propRes.rows[0];
 
     await client.query("COMMIT");
 
     return {
       id_albaran: idAlbaran,
+      document_number: albaran.document_number,
+      document_kind: albaran.document_kind,
       estado: "FIRMADO",
       firmado: true,
+      firmado_at: signedRes.rows[0]?.firmado_at ?? new Date().toISOString(),
+      created_at: albaran.created_at,
       reparacion_paso_a_pendiente_presupuesto: reparacionUpdated,
       maintenance_status: maquina.maintenance_status,
-
-      // datos para email
       email_cliente: propuesta.email_cliente,
       cliente: propuesta.cliente,
+      telefono: propuesta.telefono,
+      direccion: propuesta.direccion,
+      cp: propuesta.cp,
+      poblacion: propuesta.poblacion,
       propuesta_alquiler_id: propuesta.id,
       id_maquina: albaran.id_maquina,
+      service_context_type: albaran.service_context_type,
+      service_context_id: albaran.service_context_id,
+      service_case_type: albaran.service_case_type,
+      service_visit_kind: albaran.service_visit_kind,
+      pricing_mode: albaran.pricing_mode,
+      pricing_base_amount: albaran.pricing_base_amount,
+      includes_travel: albaran.includes_travel,
+      estimated_work_minutes: albaran.estimated_work_minutes,
+      hours_start: albaran.hours_start,
+      hours_end: albaran.hours_end,
+      total_hours: albaran.total_hours,
+      desplazamiento_text: albaran.desplazamiento_text,
+      delivery_address: albaran.delivery_address,
+      delivery_phone: albaran.delivery_phone,
+      payment_terms: albaran.payment_terms,
+      tecnico_nombre: tecnicoRes.rows[0]?.nombre ?? null,
       maquina: {
         marca: maquina.marca,
         modelo: maquina.modelo,
@@ -238,11 +296,11 @@ export async function firmarAlbaranTx({
         cp: propuesta.cp,
         poblacion: propuesta.poblacion,
       },
-      observaciones: observaciones ?? null,
+      observaciones: signedRes.rows[0]?.observaciones ?? albaran.observaciones ?? null,
     };
-  } catch (e) {
+  } catch (error) {
     await client.query("ROLLBACK");
-    throw e;
+    throw error;
   } finally {
     client.release();
   }

@@ -1,12 +1,14 @@
-﻿import * as maquinaService from "../services/maquinaria.service.js";
+import * as maquinaService from "../services/maquinaria.service.js";
 import {
     validateTipoMaquina,
     validateSubtipoMaquina,
     validateAvailability,
     validateUbicacionType,
     validateMotorType,
+    validateOwnershipType,
     canonicalMotor,
     canonicalUbicacionType,
+    canonicalOwnershipType,
     validateRecomputeQuery,
     UBICACION_TIPO_DESTINO
 } from "../schemas/maquina.schema.js";
@@ -45,6 +47,7 @@ export async function getMaquinaria(req, res) {
         const q = normalize(req.query.q);
         const ubicacion_type = readNormalizedQueryValues(req.query, "ubicacion_type");
         const motor = readNormalizedQueryValues(req.query, "motor");
+        const ownership_type = readNormalizedQueryValues(req.query, "ownership_type");
 
         let error = null;
 
@@ -83,6 +86,13 @@ export async function getMaquinaria(req, res) {
             }
         }
 
+        if (error === null && ownership_type !== undefined) {
+            const okOwnership = ownership_type.every((value) => validateOwnershipType(value));
+            if (!okOwnership) {
+                error = "Tipo de propiedad inválido";
+            }
+        }
+
 
         if (error !== null) {
             res.status(400).json({ error });
@@ -95,7 +105,8 @@ export async function getMaquinaria(req, res) {
                 marca,
                 q,
                 ubicacion_type,
-                motor
+                motor,
+                ownership_type: ownership_type?.map((value) => canonicalOwnershipType(value) ?? value),
             });
 
             res.status(200).json(maquinas);
@@ -239,6 +250,7 @@ export async function crearMaquina(req, res) {
             ubicacion,
             observaciones,
             tipo,
+            ownership_type,
         } = body;
 
         let e = null;
@@ -256,14 +268,24 @@ export async function crearMaquina(req, res) {
         const tipoOk = tipo === undefined || tipo === null || tipo === ""
           ? true
           : validateTipoMaquina(tipo);
+        const ownershipOk = ownership_type === undefined || ownership_type === null || ownership_type === ""
+          ? true
+          : validateOwnershipType(ownership_type);
 
         if (marcaTrim.length === 0 || modeloTrim.length === 0 || nsTrim.length === 0) {
             e = "Marca, modelo y numero de serie son obligatorios";
-        } else if (!subtipoOk || !motorOk || !tipoOk) {
-            e = "Tipo, subtipo o motor inválido";
+        } else if (!subtipoOk || !motorOk || !tipoOk || !ownershipOk) {
+            e = "Tipo, subtipo, motor o propiedad inválidos";
         } else {
-            const ubicacionTipoCanon = "TALLER";
             const motorCanon = motor ? canonicalMotor(motor) : null;
+            const ownershipCanon = ownership_type ? canonicalOwnershipType(ownership_type) : "TECARRAL";
+            const ubicacionTrim = String(ubicacion ?? "").trim();
+            const ubicacionTipoCanon = ownershipCanon === "CLIENTE" ? "CLIENTE" : "TALLER";
+
+            if (ownershipCanon === "CLIENTE" && ubicacionTrim.length === 0) {
+                res.status(400).json({ error: "La ubicación operativa de la máquina del cliente es obligatoria" });
+                return;
+            }
 
             const toNullableNumber = (value) => {
                 if (value === undefined || value === null || value === "") return null;
@@ -288,10 +310,20 @@ export async function crearMaquina(req, res) {
                 ns: nsTrim,
                 seguro: seguro ?? null,
                 num_poliza: num_poliza ?? null,
-                ubicacion: ubicacion ?? null,
+                ubicacion: ubicacionTrim || null,
                 observaciones: observaciones ?? null,
                 tipo: tipo ?? null,
                 ubicacion_tipo: ubicacionTipoCanon,
+                ownership_type: ownershipCanon,
+                owner_cliente_nombre: body.owner_cliente_nombre ?? null,
+                owner_cliente_email: body.owner_cliente_email ?? null,
+                owner_cliente_telefono: body.owner_cliente_telefono ?? null,
+                owner_cliente_direccion: body.owner_cliente_direccion ?? null,
+                owner_cliente_poblacion: body.owner_cliente_poblacion ?? null,
+                owner_cliente_cp: body.owner_cliente_cp ?? null,
+                ubicacion_operativa_direccion: body.ubicacion_operativa_direccion ?? null,
+                ubicacion_operativa_poblacion: body.ubicacion_operativa_poblacion ?? null,
+                ubicacion_operativa_cp: body.ubicacion_operativa_cp ?? null,
                 elev_ruedas: body.elev_ruedas ?? null,
                 elev_cap_carga: body.elev_cap_carga ?? null,
                 elev_replegado_mm: toNullableNumber(body.elev_replegado_mm),
@@ -349,6 +381,7 @@ export async function editarMaquinariaById(req, res) {
 
         const motorRaw = req.body.motor;
         const ubicacionTipoRaw = req.body.ubicacion_tipo;
+        const ownershipTypeRaw = req.body.ownership_type;
 
         const marcaRaw = req.body.marca;
         const modeloRaw = req.body.modelo;
@@ -365,6 +398,7 @@ export async function editarMaquinariaById(req, res) {
 
         const motorNorm = motorRaw === undefined ? undefined : normalize(motorRaw);
         const ubicacionTipoNorm = ubicacionTipoRaw === undefined ? undefined : normalize(ubicacionTipoRaw);
+        const ownershipTypeNorm = ownershipTypeRaw === undefined ? undefined : normalize(ownershipTypeRaw);
 
         const marca = marcaRaw === undefined ? undefined : String(marcaRaw).trim();
         const modelo = modeloRaw === undefined ? undefined : String(modeloRaw).trim();
@@ -401,6 +435,10 @@ export async function editarMaquinariaById(req, res) {
             error = "Tipo de motor inválido";
         }
 
+        if (error === null && ownershipTypeNorm !== undefined && !validateOwnershipType(ownershipTypeNorm)) {
+            error = "Tipo de propiedad inválido";
+        }
+
         if (error === null && seguroRaw !== undefined && seguro === undefined) {
             error = "Seguro inválido (usa true/false)";
         }
@@ -421,6 +459,7 @@ export async function editarMaquinariaById(req, res) {
 
         const motorCanon = motorNorm === undefined ? undefined : canonicalMotor(motorNorm);
         const ubicacionTipoCanon = ubicacionTipoNorm === undefined ? undefined : canonicalUbicacionType(ubicacionTipoNorm);
+        const ownershipTypeCanon = ownershipTypeNorm === undefined ? undefined : canonicalOwnershipType(ownershipTypeNorm);
 
         const patch = {
             subtipo,
@@ -428,12 +467,22 @@ export async function editarMaquinariaById(req, res) {
             availability,
             motor: motorCanon,
             ubicacion_tipo: ubicacionTipoCanon,
+            ownership_type: ownershipTypeCanon,
 
             marca,
             modelo,
             ns,
             ubicacion,
             observaciones,
+            owner_cliente_nombre: req.body.owner_cliente_nombre === undefined ? undefined : String(req.body.owner_cliente_nombre).trim(),
+            owner_cliente_email: req.body.owner_cliente_email === undefined ? undefined : String(req.body.owner_cliente_email).trim(),
+            owner_cliente_telefono: req.body.owner_cliente_telefono === undefined ? undefined : String(req.body.owner_cliente_telefono).trim(),
+            owner_cliente_direccion: req.body.owner_cliente_direccion === undefined ? undefined : String(req.body.owner_cliente_direccion).trim(),
+            owner_cliente_poblacion: req.body.owner_cliente_poblacion === undefined ? undefined : String(req.body.owner_cliente_poblacion).trim(),
+            owner_cliente_cp: req.body.owner_cliente_cp === undefined ? undefined : String(req.body.owner_cliente_cp).trim(),
+            ubicacion_operativa_direccion: req.body.ubicacion_operativa_direccion === undefined ? undefined : String(req.body.ubicacion_operativa_direccion).trim(),
+            ubicacion_operativa_poblacion: req.body.ubicacion_operativa_poblacion === undefined ? undefined : String(req.body.ubicacion_operativa_poblacion).trim(),
+            ubicacion_operativa_cp: req.body.ubicacion_operativa_cp === undefined ? undefined : String(req.body.ubicacion_operativa_cp).trim(),
 
             seguro,
             num_poliza,
@@ -505,7 +554,7 @@ export async function markDelivered(req, res) {
             return;
         }
 
-        res.status(200).json({ ok: true });
+        res.status(200).json(result);
     } catch (e) {
         res.status(e.statusCode ?? 500).json({ error: e.message ?? "Error" });
     }
@@ -692,15 +741,34 @@ export async function abrirIncidencia(req, res) {
       throw err;
     }
 
-    const { maintenance_status, propuesta_alquiler_id, comentario } = req.body;
+    const {
+      maintenance_status,
+      propuesta_alquiler_id,
+      service_context_type,
+      service_context_id,
+      service_case_type,
+      comentario,
+      fault_cause,
+    } = req.body;
 
-    const propuestaAlquilerId = Number(propuesta_alquiler_id);
+    const propuestaAlquilerId =
+      propuesta_alquiler_id === undefined || propuesta_alquiler_id === null
+        ? null
+        : Number(propuesta_alquiler_id);
+    const serviceContextId =
+      service_context_id === undefined || service_context_id === null
+        ? null
+        : Number(service_context_id);
 
     const result = await maquinaService.abrirIncidenciaIntoDB(
       idMaquina,
       maintenance_status,
       propuestaAlquilerId,
+      service_context_type ?? null,
+      serviceContextId,
+      service_case_type ?? null,
       comentario ?? null,
+      fault_cause ?? null,
       idUser
     );
 

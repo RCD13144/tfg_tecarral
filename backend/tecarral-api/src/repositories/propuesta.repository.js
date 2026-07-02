@@ -43,7 +43,7 @@ export async function crearPropuestaTx(body) {
 
     const mRes = await client.query(
       `
-      SELECT id_maquina, availability_status, tipo, marca, modelo
+      SELECT id_maquina, availability_status, tipo, marca, modelo, ownership_type
       FROM maquina
       WHERE id_maquina = $1
       FOR UPDATE;
@@ -59,6 +59,13 @@ export async function crearPropuestaTx(body) {
     }
 
     const maquina = mRes.rows[0];
+
+    if (String(maquina.ownership_type ?? "").trim().toUpperCase() === "CLIENTE") {
+      const err = new Error("No se pueden crear propuestas de alquiler sobre máquinas de cliente.");
+      err.code = "MAQUINA_CLIENTE_NOT_ALLOWED";
+      err.statusCode = 409;
+      throw err;
+    }
 
     if (maquina.availability_status === "ALQUILADA") {
       throw buildMaquinaUnavailableError(maquina);

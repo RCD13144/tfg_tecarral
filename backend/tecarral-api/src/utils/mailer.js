@@ -65,7 +65,7 @@ function normalizeMailError(error) {
   return new Error(responseText || "Error enviando email");
 }
 
-export async function sendMail({ to, subject, html, text }) {
+export async function sendMail({ to, subject, html, text, attachments = [] }) {
   const transporter = createMailer();
 
   const fromName = readEnv("MAIL_FROM_NAME") || "Tecarral";
@@ -79,6 +79,7 @@ export async function sendMail({ to, subject, html, text }) {
       subject,
       html,
       text,
+      attachments,
     });
 
     return info;

@@ -1,0 +1,1 @@
+{"version":3,"names":["dotenv","config","path"],"sources":["env.setup.js"],"sourcesContent":["import dotenv from \"dotenv\";\r\n\r\ndotenv.config({\r\n  path: \".env.test\",\r\n});"],"mappings":"AAAA,OAAOA,MAAM,MAAM,QAAQ;AAE3BA,MAAM,CAACC,MAAM,CAAC;EACZC,IAAI,EAAE;AACR,CAAC,CAAC","ignoreList":[]}

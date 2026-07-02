@@ -1,6 +1,7 @@
 import { normalize } from "../utils/normalize.js";
 import { UBICACION_TIPO } from "../constants/ubicacionesTipo.js";
 import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
+import { OWNERSHIP_TYPES } from "../constants/ownershipTypes.js";
 
 export function validateId(idParam) {
     const id = Number(idParam);
@@ -68,11 +69,31 @@ export function validateUbicacionType(ubicacion_type) {
 }
 
 const motores = new Set(["diesel", "electrica", "semi electrica", "manual"]);
+const ownershipTypes = new Set(["tecarral", "cliente"]);
 
 export function validateMotorType(motor) {
     const m = normalize(motor);
     const ok = m !== undefined && motores.has(m);
     return ok;
+}
+
+export function validateOwnershipType(value) {
+    const normalized = normalize(value);
+    return normalized !== undefined && ownershipTypes.has(normalized);
+}
+
+export function canonicalOwnershipType(value) {
+    const normalized = normalize(value);
+
+    if (normalized === "cliente") {
+        return OWNERSHIP_TYPES.CLIENTE;
+    }
+
+    if (normalized === "tecarral") {
+        return OWNERSHIP_TYPES.TECARRAL;
+    }
+
+    return undefined;
 }
 
 const UBICACION_TIPO_CANON = {
@@ -254,12 +275,21 @@ export function validateMaintenanceStatusPatch(body) {
 export function validateAbrirIncidenciaBody(body) {
   const status = body?.maintenance_status;
   const propuestaId = Number(body?.propuesta_alquiler_id);
+  const serviceContextType = String(body?.service_context_type ?? "").trim().toUpperCase();
+  const serviceContextId = Number(body?.service_context_id);
+  const serviceCaseType = String(body?.service_case_type ?? "").trim().toUpperCase();
+  const faultCause = String(body?.fault_cause ?? "").trim().toUpperCase();
 
   const okStatus =
     status === MAINTENANCE_STATUS.AVERIADA ||
     status === MAINTENANCE_STATUS.AVERIADA_GRAVE;
 
   const okPropuesta = Number.isInteger(propuestaId) && propuestaId > 0;
+  const okServiceContext =
+    (serviceContextType === "CONTRATO_MANTENIMIENTO" ||
+      serviceContextType === "REPARACION_PUNTUAL_CLIENTE") &&
+    Number.isInteger(serviceContextId) &&
+    serviceContextId > 0;
 
   const comentario = body?.comentario;
   const okComentario =
@@ -267,7 +297,22 @@ export function validateAbrirIncidenciaBody(body) {
     comentario === null ||
     (typeof comentario === "string" && comentario.length <= 2000);
 
-  return okStatus && okPropuesta && okComentario;
+  const okFaultCause =
+    faultCause.length === 0 ||
+    faultCause === "DESGASTE_USO" ||
+    faultCause === "GOLPE_ACCIDENTE";
+  const okServiceCaseType =
+    serviceCaseType.length === 0 ||
+    serviceCaseType === "CLIENTE_HABITUAL" ||
+    serviceCaseType === "CLIENTE_NUEVO";
+
+  return (
+    okStatus &&
+    okComentario &&
+    okFaultCause &&
+    okServiceCaseType &&
+    (okPropuesta || okServiceContext)
+  );
 }
 
 export function validateEscalarAveriaGraveBody(body) {

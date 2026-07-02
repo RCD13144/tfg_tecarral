@@ -113,10 +113,21 @@ export async function marcarReparacionTerminadaTx(
         r.id_maquina,
         r.estado,
         r.id_albaran,
-        r.id_user_asignado
+        r.id_user_asignado,
+        r.fault_cause,
+        r.service_context_type,
+        r.service_context_id,
+        COALESCE(repair_contract.contract_type, machine_contract.contract_type) AS contract_type
       FROM reparacion r
+      JOIN maquina m
+        ON m.id_maquina = r.id_maquina
+      LEFT JOIN service_contract repair_contract
+        ON repair_contract.id = r.service_context_id
+       AND r.service_context_type = 'CONTRATO_MANTENIMIENTO'
+      LEFT JOIN service_contract machine_contract
+        ON machine_contract.id = m.service_contract_id
       WHERE r.id_reparacion = $1
-      FOR UPDATE
+      FOR UPDATE OF r
       `,
       [idReparacion]
     );
@@ -147,15 +158,42 @@ export async function marcarReparacionTerminadaTx(
 
     const maquinaEstadoRes = await client.query(
       `
-      SELECT maintenance_status, ubicacion_tipo
+      SELECT
+        maintenance_status,
+        ubicacion_tipo,
+        ownership_type,
+        ubicacion_operativa_direccion,
+        ubicacion_operativa_cp,
+        ubicacion_operativa_poblacion,
+        owner_cliente_direccion,
+        owner_cliente_cp,
+        owner_cliente_poblacion,
+        ubicacion
       FROM maquina
       WHERE id_maquina = $1
       `,
       [reparacion.id_maquina]
     );
 
-    const maintenanceStatus = maquinaEstadoRes.rows[0]?.maintenance_status ?? null;
-    const ubicacionTipoActual = maquinaEstadoRes.rows[0]?.ubicacion_tipo ?? null;
+    const maquinaEstado = maquinaEstadoRes.rows[0] ?? {};
+    const maintenanceStatus = maquinaEstado.maintenance_status ?? null;
+    const ubicacionTipoActual = maquinaEstado.ubicacion_tipo ?? null;
+    const isCustomerOwnedMachine = String(maquinaEstado.ownership_type ?? "").trim().toUpperCase() === "CLIENTE";
+    const customerOperationalLocation = [
+      maquinaEstado.ubicacion_operativa_direccion,
+      maquinaEstado.ubicacion_operativa_cp,
+      maquinaEstado.ubicacion_operativa_poblacion,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .join(", ") || [
+        maquinaEstado.owner_cliente_direccion,
+        maquinaEstado.owner_cliente_cp,
+        maquinaEstado.owner_cliente_poblacion,
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(", ") || maquinaEstado.ubicacion || null;
     const severeWorkflowStates = new Set([
       "PENDIENTE_PRESUPUESTO",
       "PENDIENTE_ACEPTACION",
@@ -192,18 +230,25 @@ export async function marcarReparacionTerminadaTx(
       }
     }
 
-    const canTerminate = ReparacionStateService.canTransition(
-      reparacion.estado,
-      "TERMINADA",
-      {
-        maintenanceStatus,
-        hasPresupuesto:
-          reparacion.estado === "PENDIENTE_ACEPTACION" ||
-          reparacion.estado === "PRESUPUESTO_ACEPTADO" ||
-          reparacion.estado === "PRESUPUESTO_RECHAZADO" ||
-          reparacion.estado === "PRESUPUESTO_EXPIRADO",
-      }
-    );
+    const isAllIncludedCoveredRepair =
+      isSevereRepair &&
+      String(reparacion.contract_type ?? "").trim().toUpperCase() === "TODO_INCLUIDO" &&
+      String(reparacion.fault_cause ?? "").trim().toUpperCase() !== "GOLPE_ACCIDENTE";
+
+    const canTerminate =
+      isAllIncludedCoveredRepair ||
+      ReparacionStateService.canTransition(
+        reparacion.estado,
+        "TERMINADA",
+        {
+          maintenanceStatus,
+          hasPresupuesto:
+            reparacion.estado === "PENDIENTE_ACEPTACION" ||
+            reparacion.estado === "PRESUPUESTO_ACEPTADO" ||
+            reparacion.estado === "PRESUPUESTO_RECHAZADO" ||
+            reparacion.estado === "PRESUPUESTO_EXPIRADO",
+        }
+      );
 
     if (!canTerminate) {
       throw buildErr(
@@ -213,10 +258,10 @@ export async function marcarReparacionTerminadaTx(
     }
 
     if (isSevereRepair) {
-      if (reparacion.estado !== "PRESUPUESTO_ACEPTADO") {
+      if (reparacion.estado !== "PRESUPUESTO_ACEPTADO" && !isAllIncludedCoveredRepair) {
         throw buildErr(
           409,
-          "La reparación de una avería grave solo puede terminarse desde PRESUPUESTO_ACEPTADO",
+          "La reparaci?n de una aver?a grave solo puede terminarse desde PRESUPUESTO_ACEPTADO, salvo cobertura todo incluido por desgaste o uso normal",
           {
             idReparacion,
             estado: reparacion.estado,
@@ -241,7 +286,17 @@ export async function marcarReparacionTerminadaTx(
     }
 
     const terminateQuery = isSevereRepair
-      ? `
+      ? isAllIncludedCoveredRepair
+        ? `
+        UPDATE reparacion
+        SET
+          estado = 'TERMINADA',
+          solucion_aplicada = $2
+        WHERE id_reparacion = $1
+          AND id_user_asignado IS NOT NULL
+          AND estado IN ('PENDIENTE_PRESUPUESTO', 'PENDIENTE_ACEPTACION', 'PRESUPUESTO_ACEPTADO')
+        `
+        : `
         UPDATE reparacion
         SET
           estado = 'TERMINADA',
@@ -340,10 +395,30 @@ export async function marcarReparacionTerminadaTx(
       await client.query(
         `
         UPDATE maquina
-        SET maintenance_status = 'OK'
+        SET
+          maintenance_status = 'OK',
+          ubicacion_tipo = CASE
+            WHEN ownership_type = 'CLIENTE' AND ubicacion_tipo IN ('TALLER', 'ALMACEN', 'TRANSITO') THEN 'TRANSITO'
+            WHEN ownership_type = 'CLIENTE' THEN 'CLIENTE'
+            ELSE ubicacion_tipo
+          END,
+          ubicacion = CASE
+            WHEN ownership_type = 'CLIENTE' AND ubicacion_tipo = 'CLIENTE' THEN COALESCE($2, ubicacion)
+            ELSE ubicacion
+          END,
+          logistics_status = CASE
+            WHEN ownership_type = 'CLIENTE' AND ubicacion_tipo IN ('TALLER', 'ALMACEN', 'TRANSITO') THEN 'EN_CAMINO'
+            WHEN ownership_type = 'CLIENTE' THEN NULL
+            ELSE logistics_status
+          END,
+          transit_reason = CASE
+            WHEN ownership_type = 'CLIENTE' AND ubicacion_tipo IN ('TALLER', 'ALMACEN', 'TRANSITO') THEN 'REPARACION_TERMINADA'
+            WHEN ownership_type = 'CLIENTE' THEN NULL
+            ELSE transit_reason
+          END
         WHERE id_maquina = $1
         `,
-        [reparacion.id_maquina]
+        [reparacion.id_maquina, customerOperationalLocation]
       );
     }
 
@@ -351,9 +426,11 @@ export async function marcarReparacionTerminadaTx(
 
     return {
       id_reparacion: reparacion.id_reparacion,
+      id_maquina: reparacion.id_maquina,
       estado_anterior: reparacion.estado,
       estado_actual: "TERMINADA",
       solucion_aplicada: solucionAplicada,
+      maintenance_status_actual: "OK",
     };
 
   } catch (e) {
@@ -375,15 +452,30 @@ export async function findActiveRepairByMachineId(idMaquina) {
       r.comentario,
       r.solucion_aplicada,
       r.estado,
+      r.created_at,
+      r.fault_cause,
+      r.service_context_type,
+      r.service_context_id,
+      COALESCE(repair_contract.contract_type, machine_contract.contract_type) AS contract_type,
+      a.service_case_type,
       a.estado AS albaran_estado,
       a.propuesta_alquiler_id,
       pr.id AS presupuesto_reparacion_id,
       pr.estado AS presupuesto_estado,
       pr.payer_type AS presupuesto_payer_type,
-      pr.charge_reason AS presupuesto_charge_reason
+      pr.charge_reason AS presupuesto_charge_reason,
+      pr.coverage_decision AS presupuesto_coverage_decision,
+      pr.coverage_reason AS presupuesto_coverage_reason
     FROM reparacion r
     LEFT JOIN albaran a
       ON a.id_albaran = r.id_albaran
+    LEFT JOIN maquina m
+      ON m.id_maquina = r.id_maquina
+    LEFT JOIN service_contract repair_contract
+      ON repair_contract.id = r.service_context_id
+     AND r.service_context_type = 'CONTRATO_MANTENIMIENTO'
+    LEFT JOIN service_contract machine_contract
+      ON machine_contract.id = m.service_contract_id
     LEFT JOIN presupuesto_reparacion pr
       ON pr.reparacion_id = r.id_reparacion
     WHERE r.id_maquina = $1
@@ -416,7 +508,12 @@ export async function findActiveReparaciones({ userId = null, isAdmin = false })
       r.comentario,
       r.solucion_aplicada,
       r.estado,
+      r.fault_cause,
+      r.service_context_type,
+      r.service_context_id,
+      COALESCE(repair_contract.contract_type, machine_contract.contract_type) AS contract_type,
       r.created_at,
+      a.service_case_type,
       a.estado AS albaran_estado,
       a.propuesta_alquiler_id,
       a.cliente,
@@ -435,6 +532,8 @@ export async function findActiveReparaciones({ userId = null, isAdmin = false })
       pr.estado AS presupuesto_estado,
       pr.payer_type AS presupuesto_payer_type,
       pr.charge_reason AS presupuesto_charge_reason,
+      pr.coverage_decision AS presupuesto_coverage_decision,
+      pr.coverage_reason AS presupuesto_coverage_reason,
       pr.importe_total,
       pr.expira_at
     FROM reparacion r
@@ -442,6 +541,11 @@ export async function findActiveReparaciones({ userId = null, isAdmin = false })
       ON a.id_albaran = r.id_albaran
     LEFT JOIN maquina m
       ON m.id_maquina = r.id_maquina
+    LEFT JOIN service_contract repair_contract
+      ON repair_contract.id = r.service_context_id
+     AND r.service_context_type = 'CONTRATO_MANTENIMIENTO'
+    LEFT JOIN service_contract machine_contract
+      ON machine_contract.id = m.service_contract_id
     LEFT JOIN users u
       ON u.id_user = r.id_user_asignado
     LEFT JOIN presupuesto_reparacion pr

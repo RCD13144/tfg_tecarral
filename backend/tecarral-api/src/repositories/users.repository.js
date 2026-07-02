@@ -104,6 +104,18 @@ export async function listUsers() {
   return result.rows;
 }
 
+export async function listActiveUsers() {
+  const query = `
+    SELECT id_user, email, role, nombre, telefono, must_change_password, is_active
+    FROM public.users
+    WHERE is_active = TRUE
+    ORDER BY LOWER(nombre), LOWER(email), id_user
+  `;
+
+  const result = await pool.query(query);
+  return result.rows;
+}
+
 export async function updateUserPhone(idUser, telefono) {
   const query = `
     UPDATE public.users

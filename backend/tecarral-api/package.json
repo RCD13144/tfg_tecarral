@@ -16,7 +16,8 @@
     "migrate": "node src/migrations/runMigrations.js",
     "seed:maquinaria": "node src/scripts/seedMaquinaria.js",
     "bootstrap:admin": "node src/scripts/bootstrapAdmin.js",
-    "import:machine-images": "node src/scripts/importMachineImages.js"
+    "import:machine-images": "node src/scripts/importMachineImages.js",
+    "check:app-import": "node -e \"import('./src/app.js').then(()=>{console.log('ok'); process.exit(0);}).catch((e)=>{console.error(e); process.exit(1);})\""
   },
   "keywords": [],
   "author": "",
@@ -30,6 +31,8 @@
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.17.2",
     "pg": "^8.16.3",
     "sharp": "^0.34.5",
     "swagger-jsdoc": "^6.2.8",

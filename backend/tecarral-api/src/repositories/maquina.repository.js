@@ -2,6 +2,14 @@ import pool from "../config/db.js";
 import { UBICACION_TEXT } from "../constants/ubicaciones.js";
 import { MAINTENANCE_STATUS } from "../constants/maintenanceStatus.js";
 import { REPARACION_ESTADOS } from "../constants/reparacionEstados.js";
+import {
+  SERVICE_CONTRACT_TYPES,
+  SERVICE_CONTEXT_TYPES,
+  ALBARAN_DOCUMENT_KINDS,
+  ALBARAN_PRICING_MODES,
+  CUSTOMER_RELATIONSHIP_TYPES,
+} from "../constants/serviceContract.js";
+import { ensureEntityDocumentNumberTx } from "./formalDocument.repository.js";
 
 function addStringFilter(field, value, values, conditions, upper = false) {
     const items = Array.isArray(value) ? value.filter((item) => item !== undefined) : [value];
@@ -32,7 +40,16 @@ function splitTokens(q) {
 }
 
 
-function buildBase({ tipoMaquina, subtipo, availability, ubicacion, marca, ubicacion_type, motor }) {
+function buildBase({
+    tipoMaquina,
+    subtipo,
+    availability,
+    ubicacion,
+    marca,
+    ubicacion_type,
+    motor,
+    ownership_type,
+}) {
     const conditions = [];
     const values = [];
 
@@ -56,6 +73,9 @@ function buildBase({ tipoMaquina, subtipo, availability, ubicacion, marca, ubica
 
     if (motor !== undefined)
         addStringFilter("m.motor", motor, values, conditions);
+
+    if (ownership_type !== undefined)
+        addStringFilter("m.ownership_type", ownership_type, values, conditions, true);
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     return { where, values };
@@ -178,10 +198,38 @@ export async function getMaquinariaByIdFromDB(id) {
           me.alto            AS elev_alto,
           me.ancho           AS elev_ancho,
           me.peso_kg         AS elev_peso_kg,
-          me.horquillas      AS elev_horquillas
+          me.horquillas      AS elev_horquillas,
+          sc.contract_type   AS service_contract_type,
+          sc.estado          AS service_contract_state,
+          sc.start_date      AS service_contract_start_date,
+          sc.end_date        AS service_contract_end_date,
+          sc.created_at      AS service_contract_created_at,
+          sc.activated_at    AS service_contract_activated_at,
+          EXISTS (
+            SELECT 1
+            FROM public.service_contract_signature sig
+            WHERE sig.service_contract_id = sc.id
+              AND sig.signer_type = 'CLIENTE'
+          ) AS service_contract_client_signed,
+          EXISTS (
+            SELECT 1
+            FROM public.service_contract_signature sig
+            WHERE sig.service_contract_id = sc.id
+              AND sig.signer_type = 'TECARRAL'
+          ) AS service_contract_tecarral_signed,
+          (
+            SELECT scheduled_for
+            FROM public.service_visit_schedule visit
+            WHERE visit.service_contract_id = sc.id
+              AND visit.estado = 'PENDIENTE'
+            ORDER BY visit.scheduled_for ASC, visit.id ASC
+            LIMIT 1
+          ) AS next_service_visit_date
         FROM maquina m
         LEFT JOIN maquina_elevacion me
           ON me.id_maquina = m.id_maquina
+        LEFT JOIN public.service_contract sc
+          ON sc.id = m.service_contract_id
         WHERE m.id_maquina = $1
         `,
         [id]
@@ -208,10 +256,13 @@ const SELECT_JOINED = `
     me.alto            AS elev_alto,
     me.ancho           AS elev_ancho,
     me.peso_kg         AS elev_peso_kg,
-    me.horquillas      AS elev_horquillas
+    me.horquillas      AS elev_horquillas,
+    sc.contract_type   AS service_contract_type
   FROM maquina m
   LEFT JOIN maquina_elevacion me
     ON me.id_maquina = m.id_maquina
+  LEFT JOIN public.service_contract sc
+    ON sc.id = m.service_contract_id
 `;
 
 export async function findMaquinaria(filters) {
@@ -466,9 +517,22 @@ export async function crearMaquina(data) {
             INSERT INTO maquina (
                 marca, motor, modelo, ns, seguro, num_poliza,
                 ubicacion, observaciones, tipo, tipo_maquina, ubicacion_tipo,
-                availability_status, maintenance_status, logistics_status
+                availability_status, maintenance_status, logistics_status,
+                ownership_type,
+                owner_cliente_nombre,
+                owner_cliente_email,
+                owner_cliente_telefono,
+                owner_cliente_direccion,
+                owner_cliente_poblacion,
+                owner_cliente_cp,
+                ubicacion_operativa_direccion,
+                ubicacion_operativa_poblacion,
+                ubicacion_operativa_cp
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DISPONIBLE','OK',NULL)
+            VALUES (
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DISPONIBLE','OK',NULL,
+                $12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+            )
             RETURNING *;
         `;
 
@@ -479,11 +543,21 @@ export async function crearMaquina(data) {
             data.ns,
             data.seguro,
             data.num_poliza,
-            data.ubicacion ?? UBICACION_TEXT.TALLER,
+            data.ubicacion ?? (data.ownership_type === "CLIENTE" ? null : UBICACION_TEXT.TALLER),
             data.observaciones,
             data.subtipo,
             data.tipo,
-            data.ubicacion_tipo ?? "TALLER"
+            data.ubicacion_tipo ?? (data.ownership_type === "CLIENTE" ? "CLIENTE" : "TALLER"),
+            data.ownership_type ?? "TECARRAL",
+            data.owner_cliente_nombre ?? null,
+            data.owner_cliente_email ?? null,
+            data.owner_cliente_telefono ?? null,
+            data.owner_cliente_direccion ?? null,
+            data.owner_cliente_poblacion ?? null,
+            data.owner_cliente_cp ?? null,
+            data.ubicacion_operativa_direccion ?? null,
+            data.ubicacion_operativa_poblacion ?? null,
+            data.ubicacion_operativa_cp ?? null,
         ];
 
         const insertRes = await client.query(query, values);
@@ -586,6 +660,16 @@ export async function editarMaquina(id, patch) {
         if (isProvided(patch.observaciones)) addSet("observaciones", patch.observaciones);
         if (isProvided(patch.seguro)) addSet("seguro", patch.seguro);
         if (isProvided(patch.num_poliza)) addSet("num_poliza", patch.num_poliza);
+        if (isProvided(patch.ownership_type)) addSet("ownership_type", patch.ownership_type);
+        if (isProvided(patch.owner_cliente_nombre)) addSet("owner_cliente_nombre", patch.owner_cliente_nombre);
+        if (isProvided(patch.owner_cliente_email)) addSet("owner_cliente_email", patch.owner_cliente_email);
+        if (isProvided(patch.owner_cliente_telefono)) addSet("owner_cliente_telefono", patch.owner_cliente_telefono);
+        if (isProvided(patch.owner_cliente_direccion)) addSet("owner_cliente_direccion", patch.owner_cliente_direccion);
+        if (isProvided(patch.owner_cliente_poblacion)) addSet("owner_cliente_poblacion", patch.owner_cliente_poblacion);
+        if (isProvided(patch.owner_cliente_cp)) addSet("owner_cliente_cp", patch.owner_cliente_cp);
+        if (isProvided(patch.ubicacion_operativa_direccion)) addSet("ubicacion_operativa_direccion", patch.ubicacion_operativa_direccion);
+        if (isProvided(patch.ubicacion_operativa_poblacion)) addSet("ubicacion_operativa_poblacion", patch.ubicacion_operativa_poblacion);
+        if (isProvided(patch.ubicacion_operativa_cp)) addSet("ubicacion_operativa_cp", patch.ubicacion_operativa_cp);
 
         if (columns.length > 0) {
             values.push(id);
@@ -690,7 +774,16 @@ export async function marcarEntregadaAtomic(idMaquina) {
 
         const lockRes = await client.query(
             `
-      SELECT id_maquina
+      SELECT
+        id_maquina,
+        ownership_type,
+        ubicacion,
+        ubicacion_operativa_direccion,
+        ubicacion_operativa_cp,
+        ubicacion_operativa_poblacion,
+        owner_cliente_direccion,
+        owner_cliente_cp,
+        owner_cliente_poblacion
       FROM maquina
       WHERE id_maquina = $1
       FOR UPDATE;
@@ -701,6 +794,45 @@ export async function marcarEntregadaAtomic(idMaquina) {
         if (lockRes.rowCount === 0) {
             await client.query("ROLLBACK");
             return { ok: false, reason: "MACHINE_NOT_FOUND" };
+        }
+
+        const maquina = lockRes.rows[0];
+        const isCustomerOwned = String(maquina.ownership_type ?? "TECARRAL").trim().toUpperCase() === "CLIENTE";
+
+        if (isCustomerOwned) {
+            const ubicacionCliente = [
+              maquina.ubicacion_operativa_direccion,
+              maquina.ubicacion_operativa_cp,
+              maquina.ubicacion_operativa_poblacion,
+            ]
+              .map((value) => String(value ?? "").trim())
+              .filter(Boolean)
+              .join(", ") || [
+                maquina.owner_cliente_direccion,
+                maquina.owner_cliente_cp,
+                maquina.owner_cliente_poblacion,
+              ]
+                .map((value) => String(value ?? "").trim())
+                .filter(Boolean)
+                .join(", ") || maquina.ubicacion || null;
+
+            const updateRes = await client.query(
+                `
+        UPDATE maquina
+        SET
+          logistics_status = NULL,
+          ubicacion_tipo = 'CLIENTE',
+          ubicacion_ref_id = NULL,
+          ubicacion = COALESCE(NULLIF($2, ''), ubicacion),
+          transit_reason = NULL
+        WHERE id_maquina = $1
+        RETURNING *;
+        `,
+                [idMaquina, ubicacionCliente]
+            );
+
+            await client.query("COMMIT");
+            return { ok: true, data: updateRes.rows[0] };
         }
 
         const pRes = await client.query(
@@ -721,7 +853,6 @@ export async function marcarEntregadaAtomic(idMaquina) {
         }
 
         const propuesta = pRes.rows[0];
-
         const ubicacionCliente = `${propuesta.direccion}, ${propuesta.poblacion}`;
 
         await client.query(
@@ -982,14 +1113,34 @@ export async function moverEntreBasesTx(idMaquina, ubicacionTipo) {
       if (status === "ALQUILADA") {
         await client.query("ROLLBACK");
         result = { ok: false, reason: "RENTED", data: null };
-      } else if (
-        ubicacionActual === "CLIENTE" ||
-        ubicacionActual === "TRANSITO" ||
-        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA
-      ) {
+      } else if (ubicacionActual === "TRANSITO" || maintenanceStatus === MAINTENANCE_STATUS.AVERIADA) {
+        await client.query("ROLLBACK");
+        result = { ok: false, reason: "MOVE_NOT_ALLOWED", data: null };
+      } else if (ubicacionActual === "CLIENTE" && maintenanceStatus !== MAINTENANCE_STATUS.AVERIADA_GRAVE) {
         await client.query("ROLLBACK");
         result = { ok: false, reason: "MOVE_NOT_ALLOWED", data: null };
       } else {
+        if (ubicacionActual === "CLIENTE" && maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE) {
+          const albaranRes = await client.query(
+            `
+            SELECT a.estado
+            FROM reparacion r
+            JOIN albaran a
+              ON a.id_albaran = r.id_albaran
+            WHERE r.id_maquina = $1
+            ORDER BY r.id_reparacion DESC
+            LIMIT 1
+            `,
+            [idMaquina]
+          );
+
+          if (albaranRes.rows[0]?.estado !== "FIRMADO") {
+            await client.query("ROLLBACK");
+            result = { ok: false, reason: "ALBARAN_NOT_SIGNED", data: null };
+            return result;
+          }
+        }
+
         const ubicacionText = getUbicacionTextByTipo(ubicacionTipo);
 
         const updateRes = await client.query(
@@ -1044,7 +1195,11 @@ export async function abrirIncidenciaTx({
   idMaquina,
   maintenanceStatus,
   propuestaAlquilerId,
+  serviceContextType,
+  serviceContextId,
+  serviceCaseType,
   comentario,
+  faultCause,
   idUser,
 }) {
   const client = await pool.connect();
@@ -1054,7 +1209,20 @@ export async function abrirIncidenciaTx({
 
     const maquinaRes = await client.query(
       `
-      SELECT id_maquina, maintenance_status, marca, modelo, ns, ubicacion
+      SELECT
+        id_maquina,
+        maintenance_status,
+        marca,
+        modelo,
+        ns,
+        ubicacion,
+        ownership_type,
+        owner_cliente_nombre,
+        owner_cliente_email,
+        owner_cliente_telefono,
+        owner_cliente_direccion,
+        owner_cliente_poblacion,
+        owner_cliente_cp
       FROM public.maquina
       WHERE id_maquina = $1
       FOR UPDATE
@@ -1073,6 +1241,236 @@ export async function abrirIncidenciaTx({
         from: maquina.maintenance_status,
         to: maintenanceStatus,
       });
+    }
+
+    if (
+      (!Number.isInteger(propuestaAlquilerId) || propuestaAlquilerId <= 0) &&
+      (serviceContextType === SERVICE_CONTEXT_TYPES.CONTRATO_MANTENIMIENTO ||
+        serviceContextType === SERVICE_CONTEXT_TYPES.REPARACION_PUNTUAL_CLIENTE)
+    ) {
+      let clienteData = null;
+
+      if (
+        serviceContextType === SERVICE_CONTEXT_TYPES.CONTRATO_MANTENIMIENTO &&
+        Number.isInteger(serviceContextId) &&
+        serviceContextId > 0
+      ) {
+        const contractRes = await client.query(
+          `
+          SELECT
+            sc.id,
+            sc.cliente_nombre,
+            sc.cliente_email,
+            sc.cliente_telefono,
+            sc.cliente_direccion,
+            sc.cliente_cp,
+            sc.cliente_poblacion
+          FROM public.service_contract sc
+          JOIN public.service_contract_machine scm
+            ON scm.service_contract_id = sc.id
+          WHERE sc.id = $1
+            AND scm.id_maquina = $2
+            AND sc.estado = 'ACTIVO'
+          `,
+          [serviceContextId, idMaquina]
+        );
+
+        if (contractRes.rows.length === 0) {
+          throw buildErr(404, "Contrato de mantenimiento no encontrado para esta máquina", {
+            serviceContextId,
+            idMaquina,
+          });
+        }
+
+        const contract = contractRes.rows[0];
+        clienteData = {
+          cliente: contract.cliente_nombre,
+          email_cliente: contract.cliente_email,
+          telefono: contract.cliente_telefono,
+          direccion: contract.cliente_direccion,
+          cp: contract.cliente_cp,
+          poblacion: contract.cliente_poblacion,
+        };
+      } else if (
+        serviceContextType === SERVICE_CONTEXT_TYPES.REPARACION_PUNTUAL_CLIENTE &&
+        Number.isInteger(serviceContextId) &&
+        serviceContextId > 0
+      ) {
+        clienteData = {
+          cliente: maquina.owner_cliente_nombre ?? "Cliente",
+          email_cliente: maquina.owner_cliente_email ?? "cliente@pendiente.local",
+          telefono: maquina.owner_cliente_telefono ?? null,
+          direccion: maquina.owner_cliente_direccion ?? maquina.ubicacion ?? "Pendiente",
+          cp: maquina.owner_cliente_cp ?? "00000",
+          poblacion: maquina.owner_cliente_poblacion ?? "Pendiente",
+        };
+      } else {
+        throw buildErr(400, "Falta contexto válido para abrir la incidencia", {
+          serviceContextType,
+          serviceContextId,
+        });
+      }
+
+      const normalizedServiceCaseType =
+        serviceCaseType === CUSTOMER_RELATIONSHIP_TYPES.CLIENTE_NUEVO
+          ? CUSTOMER_RELATIONSHIP_TYPES.CLIENTE_NUEVO
+          : CUSTOMER_RELATIONSHIP_TYPES.CLIENTE_HABITUAL;
+      const logisticsStatus =
+        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
+          ? "EN_CAMINO"
+          : null;
+
+      const ubicacionTipo =
+        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
+          ? "TRANSITO"
+          : "CLIENTE";
+
+      const ubicacionCliente = [clienteData.direccion, clienteData.poblacion]
+        .filter((value) => String(value ?? "").trim().length > 0)
+        .join(", ");
+
+      await client.query(
+        `
+        UPDATE public.maquina
+        SET maintenance_status = $2,
+            logistics_status = $3,
+            ubicacion_tipo = $4,
+            ubicacion_ref_id = $5,
+            ubicacion = COALESCE($6, ubicacion)
+        WHERE id_maquina = $1
+        `,
+        [
+          idMaquina,
+          maintenanceStatus,
+          logisticsStatus,
+          ubicacionTipo,
+          serviceContextId,
+          maintenanceStatus === MAINTENANCE_STATUS.AVERIADA
+            ? (ubicacionCliente || maquina.ubicacion)
+            : maquina.ubicacion,
+        ]
+      );
+
+      const albaranRes = await client.query(
+        `
+        INSERT INTO public.albaran (
+          id_user,
+          id_maquina,
+          propuesta_alquiler_id,
+          service_context_type,
+          service_context_id,
+          document_kind,
+          service_case_type,
+          service_visit_kind,
+          pricing_mode,
+          pricing_base_amount,
+          cliente,
+          direccion,
+          telefono,
+          poblacion,
+          cp,
+          email_cliente,
+          delivery_address,
+          delivery_phone,
+          marca,
+          modelo,
+          ns,
+          observaciones,
+          estado
+        )
+        VALUES (
+          $1, $2, NULL, $3, $4,
+          $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15,
+          $16, $17,
+          $18, $19, $20,
+          $21, 'BORRADOR'
+        )
+        RETURNING id_albaran
+        `,
+        [
+          idUser,
+          idMaquina,
+          serviceContextType,
+          serviceContextId,
+          ALBARAN_DOCUMENT_KINDS.SERVICIO_TECNICO,
+          normalizedServiceCaseType,
+          maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE ? 'PRESUPUESTO_PREVIO' : 'REPARACION',
+          normalizedServiceCaseType === CUSTOMER_RELATIONSHIP_TYPES.CLIENTE_NUEVO
+            ? ALBARAN_PRICING_MODES.PREVISION_GASTO_FIJA
+            : ALBARAN_PRICING_MODES.FACTURAR_POSTERIOR,
+          normalizedServiceCaseType === CUSTOMER_RELATIONSHIP_TYPES.CLIENTE_NUEVO ? 180 : null,
+          clienteData.cliente,
+          clienteData.direccion,
+          clienteData.telefono,
+          clienteData.poblacion,
+          clienteData.cp,
+          clienteData.email_cliente,
+          maquina.ubicacion,
+          clienteData.telefono,
+          maquina.marca,
+          maquina.modelo,
+          maquina.ns,
+          comentario ?? null,
+        ]
+      );
+
+      const idAlbaran = albaranRes.rows[0]?.id_albaran;
+      const documentNumber = await ensureEntityDocumentNumberTx(client, {
+        entityTable: 'albaran',
+        entityIdColumn: 'id_albaran',
+        entityId: idAlbaran,
+        documentType: 'ALBARAN',
+      });
+      const reparacionEstado =
+        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
+          ? REPARACION_ESTADOS.PENDIENTE_PRESUPUESTO
+          : REPARACION_ESTADOS.CREADA;
+
+      const reparacionRes = await client.query(
+        `
+        INSERT INTO public.reparacion (
+          id_maquina,
+          id_albaran,
+          id_user_asignado,
+          comentario,
+          solucion_aplicada,
+          estado,
+          service_context_type,
+          service_context_id,
+          fault_cause
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id_reparacion
+        `,
+        [
+          idMaquina,
+          idAlbaran,
+          maintenanceStatus === MAINTENANCE_STATUS.AVERIADA ? idUser : null,
+          comentario ?? null,
+          null,
+          reparacionEstado,
+          serviceContextType,
+          serviceContextId,
+          faultCause ?? null,
+        ]
+      );
+
+      await client.query("COMMIT");
+
+      return {
+        id_maquina: idMaquina,
+        maintenance_status: maintenanceStatus,
+        ubicacion_tipo: ubicacionTipo,
+        logistics_status: logisticsStatus,
+        id_albaran: idAlbaran,
+        id_reparacion: reparacionRes.rows[0]?.id_reparacion,
+        reparacion_estado: reparacionEstado,
+        service_context_type: serviceContextType,
+        service_context_id: serviceContextId,
+        document_number: documentNumber,
+        service_case_type: normalizedServiceCaseType,
+      };
     }
 
     const propRes = await client.query(
@@ -1128,7 +1526,7 @@ export async function abrirIncidenciaTx({
 
     const logisticsStatus =
       maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
-        ? "EN_CAMINO"
+        ? "PRESUPUESTO_PREVIO"
         : null;
 
     const ubicacionTipo =
@@ -1177,23 +1575,34 @@ export async function abrirIncidenciaTx({
         id_user,
         id_maquina,
         propuesta_alquiler_id,
+        service_context_type,
+        service_context_id,
+        document_kind,
+        service_case_type,
+        service_visit_kind,
+        pricing_mode,
+        pricing_base_amount,
         cliente,
         direccion,
         telefono,
         poblacion,
         cp,
         email_cliente,
-        marca,
+        delivery_address,
+          delivery_phone,
+          marca,
         modelo,
         ns,
         observaciones,
         estado
       )
       VALUES (
-        $1, $2, $3,
-        $4, $5, $6, $7, $8, $9,
-        $10, $11, $12,
-        $13, 'BORRADOR'
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16,
+        $17, $18,
+        $19, $20, $21,
+        $22, 'BORRADOR'
       )
       RETURNING id_albaran
       `,
@@ -1201,12 +1610,21 @@ export async function abrirIncidenciaTx({
         idUser,
         idMaquina,
         propuestaAlquilerId,
+        SERVICE_CONTEXT_TYPES.ALQUILER,
+        propuestaAlquilerId,
+        ALBARAN_DOCUMENT_KINDS.SERVICIO_TECNICO,
+        null,
+        maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE ? 'PRESUPUESTO_PREVIO' : 'REPARACION',
+        ALBARAN_PRICING_MODES.FACTURAR_POSTERIOR,
+        null,
         propuesta.cliente,
         propuesta.direccion,
         propuesta.telefono,
         propuesta.poblacion,
         propuesta.cp,
         propuesta.email_cliente,
+        ubicacionCliente,
+        propuesta.telefono,
         maquina.marca,
         maquina.modelo,
         maquina.ns,
@@ -1215,6 +1633,12 @@ export async function abrirIncidenciaTx({
     );
 
     const idAlbaran = albaranRes.rows[0]?.id_albaran;
+    const documentNumber = await ensureEntityDocumentNumberTx(client, {
+      entityTable: 'albaran',
+      entityIdColumn: 'id_albaran',
+      entityId: idAlbaran,
+      documentType: 'ALBARAN',
+    });
 
     if (!idAlbaran) {
       throw buildErr(500, "No se pudo crear el albarán", { idMaquina });
@@ -1225,7 +1649,7 @@ export async function abrirIncidenciaTx({
 
     const reparacionEstado =
       maintenanceStatus === MAINTENANCE_STATUS.AVERIADA_GRAVE
-        ? "PENDIENTE_PRESUPUESTO"
+          ? REPARACION_ESTADOS.PENDIENTE_PRESUPUESTO
         : REPARACION_ESTADOS.CREADA;
 
     const reparacionRes = await client.query(
@@ -1236,9 +1660,12 @@ export async function abrirIncidenciaTx({
         id_user_asignado,
         comentario,
         solucion_aplicada,
-        estado
+        estado,
+        service_context_type,
+        service_context_id,
+        fault_cause
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id_reparacion
       `,
       [
@@ -1248,6 +1675,9 @@ export async function abrirIncidenciaTx({
         comentario ?? null,
         null,
         reparacionEstado,
+        SERVICE_CONTEXT_TYPES.ALQUILER,
+        propuestaAlquilerId,
+        faultCause ?? null,
       ]
     );
 
@@ -1267,6 +1697,9 @@ export async function abrirIncidenciaTx({
       id_albaran: idAlbaran,
       id_reparacion: idReparacion,
       reparacion_estado: reparacionEstado,
+      service_context_type: SERVICE_CONTEXT_TYPES.ALQUILER,
+      service_context_id: propuestaAlquilerId,
+      document_number: documentNumber,
     };
   } catch (e) {
     await client.query("ROLLBACK");
@@ -1349,7 +1782,9 @@ export async function escalarAveriaGraveTx({ idMaquina, comentario }) {
     await client.query(
       `
       UPDATE public.albaran
-      SET observaciones = COALESCE($2, observaciones)
+      SET
+        observaciones = COALESCE($2, observaciones),
+        service_visit_kind = 'PRESUPUESTO_PREVIO'
       WHERE id_albaran = (
         SELECT r.id_albaran
         FROM public.reparacion r
@@ -1375,3 +1810,4 @@ export async function escalarAveriaGraveTx({ idMaquina, comentario }) {
     client.release();
   }
 }
+
