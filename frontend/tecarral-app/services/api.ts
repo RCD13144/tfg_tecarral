@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '@/config/api';
+﻿import { API_BASE_URL } from '@/config/api';
 
 export class ApiError extends Error {
   status: number;
@@ -33,10 +33,15 @@ export async function apiRequest<T>(
   const data = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : null;
 
   if (!response.ok) {
-    const message =
-      typeof data?.error === 'string' ? data.error : 'No se pudo completar la solicitud';
-    throw new ApiError(message, response.status);
+    const errorMessage = typeof data?.error === 'string' ? data.error : null;
+    const messageText = typeof data?.message === 'string' ? data.message : null;
+    const errorsText = Array.isArray(data?.errors)
+      ? data.errors.filter((item) => typeof item === 'string').join('\n')
+      : null;
+    const message = errorMessage ?? messageText ?? errorsText ?? 'No se pudo completar la solicitud';
+    throw new ApiError(errorsText && message !== errorsText ? `${message}: ${errorsText}` : message, response.status);
   }
 
   return data as T;
 }
+

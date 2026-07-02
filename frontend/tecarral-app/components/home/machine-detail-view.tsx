@@ -32,6 +32,7 @@ export function MachineDetailView({
   onToggleLocationPicker,
   onSelectLocation,
   canMarkDelivered,
+  canUseLocationFlow,
   onConfirmLocation,
   statusActionLoading,
   maintenanceOptions,
@@ -50,9 +51,11 @@ export function MachineDetailView({
   proposals,
   onOpenProposalDetail,
   canCreateProposal,
+  canCreateServiceContract,
   canOpenProposalForm,
   proposalButtonDisabledReason,
   onOpenProposalForm,
+  onOpenServiceContractForm,
   machineEditForm,
   machineEditFeedback,
   machineEditSubmitting,
@@ -84,6 +87,11 @@ export function MachineDetailView({
   onOpenNavigation,
   canSubmitIncidence,
   incidenceEscalationMode,
+  isCustomerOwnedMachine,
+  incidenceServiceCaseType,
+  incidenceFaultCause,
+  onChangeIncidenceServiceCaseType,
+  onChangeIncidenceFaultCause,
   onRequestScrollToFocusedInput,
 }: {
   detailLoading: boolean;
@@ -100,6 +108,7 @@ export function MachineDetailView({
   onToggleLocationPicker: () => void;
   onSelectLocation: (value: string) => void;
   canMarkDelivered: boolean;
+  canUseLocationFlow: boolean;
   onConfirmLocation: () => void;
   statusActionLoading: boolean;
   maintenanceOptions: { label: string; value: string }[];
@@ -118,9 +127,11 @@ export function MachineDetailView({
   proposals: MachineProposalSummary[];
   onOpenProposalDetail: (proposal: MachineProposalSummary) => void;
   canCreateProposal: boolean;
+  canCreateServiceContract: boolean;
   canOpenProposalForm: boolean;
   proposalButtonDisabledReason: string | null;
   onOpenProposalForm: () => void;
+  onOpenServiceContractForm: () => void;
   machineEditForm: MachineEditFormData;
   machineEditFeedback: string | null;
   machineEditSubmitting: boolean;
@@ -155,6 +166,11 @@ export function MachineDetailView({
   onOpenNavigation: () => void;
   canSubmitIncidence: boolean;
   incidenceEscalationMode: boolean;
+  isCustomerOwnedMachine: boolean;
+  incidenceServiceCaseType: 'CLIENTE_HABITUAL' | 'CLIENTE_NUEVO' | '';
+  incidenceFaultCause: 'DESGASTE_USO' | 'GOLPE_ACCIDENTE' | '';
+  onChangeIncidenceServiceCaseType: (value: 'CLIENTE_HABITUAL' | 'CLIENTE_NUEVO') => void;
+  onChangeIncidenceFaultCause: (value: 'DESGASTE_USO' | 'GOLPE_ACCIDENTE') => void;
   onRequestScrollToFocusedInput?: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -183,7 +199,26 @@ export function MachineDetailView({
     selectedMaintenanceStatus || selectedMachineDetail.maintenance_status
   );
   const isElevation = normalizeValue(selectedMachineDetail.tipo_maquina) === 'elevacion';
+  const detailFields = isCustomerOwnedMachine
+    ? COMMON_DETAIL_FIELDS.filter((field) => field.key !== 'availability_status')
+    : COMMON_DETAIL_FIELDS;
   const isEditElevation = machineEditForm.tipo === 'elevacion';
+  const detailImageKey = JSON.stringify(machineImageSource ?? null);
+  const nextServiceActionValue = (() => {
+    const action = selectedMachineDetail.next_service_action;
+    if (!action) return '-';
+    if (typeof action === 'string') return action;
+    if (typeof action === 'object') {
+      const data = action as { label?: unknown; description?: unknown; code?: unknown };
+      const label = String(data.label ?? '').trim();
+      const description = String(data.description ?? '').trim();
+      if (label && description) return `${label}. ${description}`;
+      if (label) return label;
+      if (description) return description;
+      return String(data.code ?? '-');
+    }
+    return String(action);
+  })();
 
   return (
     <View style={homeStyles.detailContainer}>
@@ -194,11 +229,19 @@ export function MachineDetailView({
         {machineImageSource ? (
           machineImageHasBackground ? (
             <View style={homeStyles.detailImageFrame}>
-              <ExpoImage contentFit="contain" source={machineImageSource} style={homeStyles.detailImage} />
+              <ExpoImage
+                cachePolicy="none"
+                contentFit="contain"
+                key={`detail-framed-${detailImageKey}`}
+                source={machineImageSource}
+                style={homeStyles.detailImage}
+              />
             </View>
           ) : (
             <ExpoImage
+              cachePolicy="none"
               contentFit="contain"
+              key={`detail-bare-${detailImageKey}`}
               source={machineImageSource}
               style={homeStyles.detailImageBare}
             />
@@ -217,7 +260,7 @@ export function MachineDetailView({
 
       <FieldRow label="Nombre" value={formatMachineName(selectedMachineDetail)} />
 
-      {COMMON_DETAIL_FIELDS.map((field) => (
+      {detailFields.map((field) => (
         <FieldRow key={field.key} label={field.label} value={selectedMachineDetail[field.key]} />
       ))}
 
@@ -424,7 +467,7 @@ export function MachineDetailView({
               <Text style={homeStyles.formFieldLabel}>Elevación (cm)</Text>
               <TextInput
                 onChangeText={(value) => onChangeMachineEditField('elev_elevacion', value)}
-                placeholder="Elevacion (cm)"
+                placeholder="Elevación (cm)"
                 placeholderTextColor={AppColors.primary50}
                 style={homeStyles.formInput}
                 value={machineEditForm.elev_elevacion}
@@ -442,7 +485,7 @@ export function MachineDetailView({
               <Text style={homeStyles.formFieldLabel}>Posición</Text>
               <TextInput
                 onChangeText={(value) => onChangeMachineEditField('elev_posicion', value)}
-                placeholder="Posicion"
+                placeholder="Posición"
                 placeholderTextColor={AppColors.primary50}
                 style={homeStyles.formInput}
                 value={machineEditForm.elev_posicion}
@@ -472,7 +515,7 @@ export function MachineDetailView({
               <Text style={homeStyles.formFieldLabel}>Matrícula</Text>
               <TextInput
                 onChangeText={(value) => onChangeMachineEditField('elev_matricula', value)}
-                placeholder="Matricula"
+                placeholder="Matrícula"
                 placeholderTextColor={AppColors.primary50}
                 style={homeStyles.formInput}
                 value={machineEditForm.elev_matricula}
@@ -531,32 +574,45 @@ export function MachineDetailView({
         </View>
       ) : null}
 
-      <View style={homeStyles.detailActionsRow}>
-        <View style={homeStyles.detailActionsColumn}>
-          <SelectorField
-            disabled={locationActionLoading || locationOptions.length <= 0}
-            isOpen={locationPickerOpen}
-            label="Ubicación"
-            onSelect={onSelectLocation}
-            onToggleOpen={onToggleLocationPicker}
-            options={locationOptions}
-            valueLabel={locationValue}
-          />
-        </View>
+      {canUseLocationFlow ? (
+        <View style={homeStyles.detailActionsRow}>
+          <View style={homeStyles.detailActionsColumn}>
+            <SelectorField
+              disabled={locationActionLoading || locationOptions.length <= 0}
+              isOpen={locationPickerOpen}
+              label="Ubicación"
+              onSelect={onSelectLocation}
+              onToggleOpen={onToggleLocationPicker}
+              options={locationOptions}
+              valueLabel={locationValue}
+            />
+          </View>
 
-        {canMarkDelivered ? (
           <Pressable
+            disabled={!canMarkDelivered || locationActionLoading}
             onPress={onConfirmLocation}
             style={[
               homeStyles.secondaryActionButton,
-              locationActionLoading && homeStyles.actionButtonDisabled,
+              (!canMarkDelivered || locationActionLoading) && homeStyles.actionButtonDisabled,
             ]}>
             <Text style={homeStyles.secondaryActionButtonText}>
-              {locationActionLoading ? 'Procesando...' : 'Confirmar ubicación'}
+              {locationActionLoading ? 'Procesando...' : 'Confirmar llegada / ubicación'}
             </Text>
           </Pressable>
-        ) : null}
-      </View>
+
+          {isCustomerOwnedMachine ? (
+            <View style={homeStyles.mapsTextBlock}>
+              <FieldRow label="Ubicación operativa" value={selectedMachineDetail.ubicacion} />
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View style={homeStyles.sectionBlock}>
+          <Text style={homeStyles.sectionTitle}>Ubicación base</Text>
+          <FieldRow label="Base" value="Cliente" />
+          <FieldRow label="Ubicación operativa" value={selectedMachineDetail.ubicacion} />
+        </View>
+      )}
 
       <SelectorField
         disabled={statusActionLoading || maintenanceOptions.length <= 1}
@@ -582,11 +638,59 @@ export function MachineDetailView({
             <Text style={homeStyles.sectionHint}>
               Se reutilizará el albarán e incidencia actuales para escalar a avería grave.
             </Text>
+          ) : isCustomerOwnedMachine ? (
+            <Text style={homeStyles.sectionHint}>
+              Completa el tipo de cliente y la causa para abrir el expediente técnico.
+            </Text>
           ) : (
             <Text style={homeStyles.feedbackText}>
               Esta máquina necesita una propuesta aceptada para abrir la incidencia.
             </Text>
           )}
+          {isCustomerOwnedMachine && !incidenceEscalationMode ? (
+            <>
+              <Text style={homeStyles.formFieldLabel}>Tipo de cliente</Text>
+              <View style={homeStyles.inlineActionRow}>
+                {([
+                  { label: 'Habitual', value: 'CLIENTE_HABITUAL' },
+                  { label: 'Nuevo', value: 'CLIENTE_NUEVO' },
+                ] as const).map((option) => {
+                  const selected = incidenceServiceCaseType === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => onChangeIncidenceServiceCaseType(option.value)}
+                      style={[homeStyles.inlineActionButton, selected && homeStyles.filterChipActive]}>
+                      <Text style={[homeStyles.inlineActionButtonText, selected && homeStyles.filterChipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={homeStyles.formFieldLabel}>Causa de la avería</Text>
+              <View style={homeStyles.inlineActionColumn}>
+                {([
+                  { label: 'Desgaste o uso normal', value: 'DESGASTE_USO' },
+                  { label: 'Golpe o accidente', value: 'GOLPE_ACCIDENTE' },
+                ] as const).map((option) => {
+                  const selected = incidenceFaultCause === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => onChangeIncidenceFaultCause(option.value)}
+                      style={[homeStyles.inlineActionButton, selected && homeStyles.filterChipActive]}>
+                      <Text style={[homeStyles.inlineActionButtonText, selected && homeStyles.filterChipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
           <Text style={homeStyles.incidenceHint}>
             Describe qué le pasa a la máquina y si se puede reparar in situ antes de abrir la
             incidencia.
@@ -640,51 +744,81 @@ export function MachineDetailView({
           ))
         : null}
 
-      <View style={homeStyles.sectionBlock}>
-        <Pressable onPress={onToggleProposals} style={homeStyles.sectionHeaderButton}>
-          <Text style={homeStyles.sectionTitle}>Propuestas de alquiler</Text>
-          <Ionicons
-            color={AppColors.primary}
-            name={proposalsExpanded ? 'chevron-up' : 'chevron-down'}
-            size={22}
+      {isCustomerOwnedMachine ? (
+        <View style={homeStyles.sectionBlock}>
+          <Text style={homeStyles.sectionTitle}>Expediente técnico</Text>
+          <FieldRow
+            label="Contrato"
+            value={selectedMachineDetail.service_contract_type ?? '-'}
           />
-        </Pressable>
+          <FieldRow
+            label="Reparación activa"
+            value={selectedMachineDetail.active_repair?.estado ?? '-'}
+          />
+          <FieldRow
+            label="Causa registrada"
+            value={selectedMachineDetail.active_repair?.fault_cause ?? '-'}
+          />
+          <FieldRow
+            label="Siguiente paso"
+            value={nextServiceActionValue}
+          />
 
-        {acceptedProposal ? (
-          <Text style={homeStyles.acceptedProposalText}>
-            Hay una propuesta aceptada: #{acceptedProposal.id}
-          </Text>
-        ) : (
-          <Text style={homeStyles.sectionHint}>No hay propuesta aceptada para esta máquina.</Text>
-        )}
-
-        {proposalsExpanded ? (
-          proposals.length === 0 ? (
-            <Text style={homeStyles.sectionHint}>Todavía no hay propuestas registradas.</Text>
-          ) : (
-            proposals.map((proposal) => (
-              <ProposalCard
-                item={proposal}
-                key={proposal.id}
-                onPress={canCreateProposal ? onOpenProposalDetail : undefined}
+          {canCreateServiceContract ? (
+            <Pressable onPress={onOpenServiceContractForm} style={homeStyles.primaryActionButton}>
+              <Text style={homeStyles.primaryActionButtonText}>Crear contrato de mantenimiento</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <>
+          <View style={homeStyles.sectionBlock}>
+            <Pressable onPress={onToggleProposals} style={homeStyles.sectionHeaderButton}>
+              <Text style={homeStyles.sectionTitle}>Propuestas de alquiler</Text>
+              <Ionicons
+                color={AppColors.primary}
+                name={proposalsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={22}
               />
-            ))
-          )
-        ) : null}
-      </View>
+            </Pressable>
 
-      {canCreateProposal ? (
-        <Pressable
-          disabled={!canOpenProposalForm}
-          onPress={onOpenProposalForm}
-          style={[homeStyles.primaryActionButton, !canOpenProposalForm && homeStyles.actionButtonDisabled]}>
-          <Text style={homeStyles.primaryActionButtonText}>Crear propuesta de alquiler</Text>
-        </Pressable>
-      ) : null}
+            {acceptedProposal ? (
+              <Text style={homeStyles.acceptedProposalText}>
+                Hay una propuesta aceptada: #{acceptedProposal.id}
+              </Text>
+            ) : (
+              <Text style={homeStyles.sectionHint}>No hay propuesta aceptada para esta máquina.</Text>
+            )}
 
-      {canCreateProposal && proposalButtonDisabledReason ? (
-        <Text style={homeStyles.sectionHint}>{proposalButtonDisabledReason}</Text>
-      ) : null}
+            {proposalsExpanded ? (
+              proposals.length === 0 ? (
+                <Text style={homeStyles.sectionHint}>Todavía no hay propuestas registradas.</Text>
+              ) : (
+                proposals.map((proposal) => (
+                  <ProposalCard
+                    item={proposal}
+                    key={proposal.id}
+                    onPress={canCreateProposal ? onOpenProposalDetail : undefined}
+                  />
+                ))
+              )
+            ) : null}
+          </View>
+
+          {canCreateProposal ? (
+            <Pressable
+              disabled={!canOpenProposalForm}
+              onPress={onOpenProposalForm}
+              style={[homeStyles.primaryActionButton, !canOpenProposalForm && homeStyles.actionButtonDisabled]}>
+              <Text style={homeStyles.primaryActionButtonText}>Crear propuesta de alquiler</Text>
+            </Pressable>
+          ) : null}
+
+          {canCreateProposal && proposalButtonDisabledReason ? (
+            <Text style={homeStyles.sectionHint}>{proposalButtonDisabledReason}</Text>
+          ) : null}
+        </>
+      )}
 
       <Pressable
         disabled={machineEditSubmitting}

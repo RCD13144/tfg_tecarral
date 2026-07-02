@@ -1,13 +1,16 @@
 import { Linking } from 'react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { cacheDirectory, copyAsync, makeDirectoryAsync } from 'expo-file-system/legacy';
 
 import {
   EMPTY_FILTERS,
+  FILTER_DEFINITIONS,
   EMPTY_MACHINE_CREATE_FORM,
   EMPTY_MACHINE_EDIT_FORM,
   EMPTY_PROPOSAL_FORM,
   EMPTY_REPAIR_BUDGET_FORM,
+  EMPTY_SERVICE_CONTRACT_FORM,
 } from '@/constants/home';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/services/api';
@@ -33,6 +36,7 @@ import {
   getMachineProposals,
   updateMachineProposal,
 } from '@/services/propuestas-api';
+import { createServiceContract } from '@/services/service-contracts-api';
 import type { AuthSession } from '@/types/auth';
 import type { NavigationAppOption } from '@/types/home';
 import type {
@@ -44,8 +48,10 @@ import type {
   MachineEditFormData,
   MachineFilters,
   MachineProposalSummary,
+  InventoryOwnershipType,
   Maquina,
   ProposalFormData,
+  ServiceContractCreateFormData,
   SearchSuggestion,
 } from '@/types/maquina';
 import type { RepairBudgetFormData } from '@/types/reparacion';
@@ -69,6 +75,8 @@ export function useHomeScreen(session: AuthSession | null) {
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [filters, setFilters] = useState<MachineFilters>(EMPTY_FILTERS);
+  const [inventoryOwnershipType, setInventoryOwnershipType] =
+    useState<InventoryOwnershipType>('TECARRAL');
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [machines, setMachines] = useState<Maquina[]>([]);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -99,6 +107,14 @@ export function useHomeScreen(session: AuthSession | null) {
     useState<RepairBudgetFormData>(EMPTY_REPAIR_BUDGET_FORM);
   const [repairBudgetSubmitting, setRepairBudgetSubmitting] = useState(false);
   const [repairBudgetFeedback, setRepairBudgetFeedback] = useState<string | null>(null);
+  const [serviceContractForm, setServiceContractForm] =
+    useState<ServiceContractCreateFormData>(EMPTY_SERVICE_CONTRACT_FORM);
+  const [serviceContractFeedback, setServiceContractFeedback] = useState<string | null>(null);
+  const [serviceContractSubmitting, setServiceContractSubmitting] = useState(false);
+  const [incidenceServiceCaseType, setIncidenceServiceCaseType] =
+    useState<'CLIENTE_HABITUAL' | 'CLIENTE_NUEVO' | ''>('');
+  const [incidenceFaultCause, setIncidenceFaultCause] =
+    useState<'DESGASTE_USO' | 'GOLPE_ACCIDENTE' | ''>('');
   const [machineEditForm, setMachineEditForm] =
     useState<MachineEditFormData>(EMPTY_MACHINE_EDIT_FORM);
   const [machineEditFeedback, setMachineEditFeedback] = useState<string | null>(null);
@@ -113,6 +129,7 @@ export function useHomeScreen(session: AuthSession | null) {
     useState<MachineCreateFormData>(EMPTY_MACHINE_CREATE_FORM);
   const [machineCreateFeedback, setMachineCreateFeedback] = useState<string | null>(null);
   const [machineCreateSubmitting, setMachineCreateSubmitting] = useState(false);
+  const [machineCreateSubtipoOpen, setMachineCreateSubtipoOpen] = useState(false);
   const [machineCreateTipoOpen, setMachineCreateTipoOpen] = useState(false);
   const [machineCreateMotorOpen, setMachineCreateMotorOpen] = useState(false);
   const [machineCreateSeguroOpen, setMachineCreateSeguroOpen] = useState(false);
@@ -128,12 +145,12 @@ export function useHomeScreen(session: AuthSession | null) {
 
   const activeFilterCount = useMemo(
     () =>
-      filters.availability.length +
+      (inventoryOwnershipType === 'CLIENTE' ? filters.service_contract.length : filters.availability.length) +
       filters.tipo.length +
       filters.subtipo.length +
       filters.motor.length +
       filters.ubicacion_type.length,
-    [filters]
+    [filters, inventoryOwnershipType]
   );
 
   const acceptedProposal = useMemo(
@@ -162,23 +179,38 @@ export function useHomeScreen(session: AuthSession | null) {
     [selectedMachineDetail, selectedMachineProposals]
   );
 
-  const maintenanceOptions = useMemo(
-    () => getAllowedMaintenanceOptions(selectedMachineDetail?.maintenance_status),
-    [selectedMachineDetail?.maintenance_status]
-  );
+  const maintenanceOptions = useMemo(() => {
+    const options = getAllowedMaintenanceOptions(selectedMachineDetail?.maintenance_status);
+    const isCustomer =
+      String(selectedMachineDetail?.ownership_type ?? 'TECARRAL').trim().toUpperCase() === 'CLIENTE';
 
-  const canCreateProposal = session?.user.role === 'admin';
+    if (!isCustomer) return options;
+
+    const current = String(selectedMachineDetail?.maintenance_status ?? '').trim().toUpperCase();
+    if (current === 'OK') {
+      return options.filter((option) => option.value !== 'AVERIADA_GRAVE');
+    }
+
+    return options;
+  }, [selectedMachineDetail?.maintenance_status, selectedMachineDetail?.ownership_type]);
+
+  const isCustomerOwnedMachine =
+    String(selectedMachineDetail?.ownership_type ?? 'TECARRAL').trim().toUpperCase() === 'CLIENTE';
+  const canCreateProposal = session?.user.role === 'admin' && !isCustomerOwnedMachine;
   const canCreateMachine = session?.user.role === 'admin';
+  const canCreateServiceContract = session?.user.role === 'admin' && isCustomerOwnedMachine;
   const proposalButtonDisabledReason = acceptedProposal
     ? `La máquina ya tiene una propuesta aceptada (#${acceptedProposal.id}).`
     : null;
   const canOpenProposalForm = canCreateProposal && !acceptedProposal;
+  const activeRepair = selectedMachineDetail?.active_repair ?? null;
+  const machineMaintenanceStatus = String(selectedMachineDetail?.maintenance_status ?? '').trim().toUpperCase();
+  const machineAvailabilityStatus = String(selectedMachineDetail?.availability_status ?? '').trim().toUpperCase();
   const showRepairBudgetButton =
     session?.user.role === 'admin' &&
-    String(selectedMachineDetail?.availability_status ?? '').trim().toUpperCase() === 'ALQUILADA' &&
-    String(selectedMachineDetail?.maintenance_status ?? '').trim().toUpperCase() ===
-      'AVERIADA_GRAVE';
-  const activeRepair = selectedMachineDetail?.active_repair ?? null;
+    machineMaintenanceStatus === 'AVERIADA_GRAVE' &&
+    ((isCustomerOwnedMachine && activeRepair !== null) ||
+      (!isCustomerOwnedMachine && machineAvailabilityStatus === 'ALQUILADA'));
   const repairBudgetDisabledReason = !showRepairBudgetButton
     ? null
     : !activeRepair
@@ -187,29 +219,43 @@ export function useHomeScreen(session: AuthSession | null) {
         ? 'Antes hay que firmar el albarán correspondiente a la avería grave.'
         : activeRepair.presupuesto_reparacion_id
           ? `Ya existe un presupuesto de reparación (#${activeRepair.presupuesto_reparacion_id}).`
-          : activeRepair.propuesta_alquiler_id === null
+          : !isCustomerOwnedMachine && activeRepair.propuesta_alquiler_id === null
             ? 'La reparación no tiene propuesta de alquiler asociada.'
-            : null;
+            : selectedMachineDetail?.can_create_repair_budget === false
+              ? String(selectedMachineDetail.repair_budget_block_reason ?? 'No procede crear presupuesto para esta reparación.')
+              : null;
   const canCreateRepairBudget = showRepairBudgetButton && !repairBudgetDisabledReason;
-  const canMarkDelivered = ['TALLER', 'ALMACEN', 'CLIENTE', 'TRANSITO'].includes(
-    String(selectedMachineDetail?.ubicacion_tipo ?? '').trim().toUpperCase()
-  );
+  const canUseLocationFlow = true;
+  const selectedLocationValue = String(selectedMachineDetail?.ubicacion_tipo ?? '').trim().toUpperCase();
+  const targetLocationValue = String(selectedTargetLocation || selectedLocationValue).trim().toUpperCase();
+  const canMarkDelivered =
+    canUseLocationFlow &&
+    selectedMachineDetail !== null &&
+    targetLocationValue.length > 0 &&
+    targetLocationValue !== selectedLocationValue &&
+    locationOptions.some((option) => option.value === targetLocationValue);
   const incidenceEscalationMode =
-    String(selectedMachineDetail?.maintenance_status ?? '').trim().toUpperCase() === 'AVERIADA' &&
-    selectedMaintenanceStatus === 'AVERIADA_GRAVE';
-  const canSubmitIncidence = incidenceEscalationMode ? true : acceptedProposal !== null;
+    machineMaintenanceStatus === 'AVERIADA' && selectedMaintenanceStatus === 'AVERIADA_GRAVE';
+  const canSubmitIncidence = isCustomerOwnedMachine
+    ? incidenceEscalationMode ||
+      (selectedMaintenanceStatus === 'AVERIADA' && Boolean(incidenceServiceCaseType) && Boolean(incidenceFaultCause))
+    : incidenceEscalationMode
+      ? true
+      : acceptedProposal !== null;
   const machineTipoOptions = [
-    { label: 'Elevacion', value: 'elevacion' },
+    { label: 'Elevación', value: 'elevacion' },
     { label: 'Limpieza', value: 'limpieza' },
   ] as const;
+  const machineSubtipoOptions =
+    FILTER_DEFINITIONS.find((definition) => definition.key === 'subtipo')?.options ?? [];
   const machineMotorOptions = [
-    { label: 'Diesel', value: 'diesel' },
-    { label: 'Electrica', value: 'electrica' },
-    { label: 'Semi electrica', value: 'semi electrica' },
+    { label: 'Diésel', value: 'diesel' },
+    { label: 'Eléctrica', value: 'electrica' },
+    { label: 'Semieléctrica', value: 'semi electrica' },
     { label: 'Manual', value: 'manual' },
   ] as const;
   const machineSeguroOptions = [
-    { label: 'Si', value: 'true' },
+    { label: 'Sí', value: 'true' },
     { label: 'No', value: 'false' },
   ] as const;
   const machineBooleanOptions = machineSeguroOptions;
@@ -223,6 +269,24 @@ export function useHomeScreen(session: AuthSession | null) {
     if (normalized === 'false') return 'false';
 
     return '';
+  }
+
+
+  async function persistPickedMachineImage(uri: string) {
+    const cleanUri = String(uri ?? '').trim();
+    if (!cleanUri || !cacheDirectory) return cleanUri;
+
+    try {
+      const directory = `${cacheDirectory}tecarral-machine-images/`;
+      await makeDirectoryAsync(directory, { intermediates: true });
+      const extension = cleanUri.split('?')[0]?.split('.').pop()?.toLowerCase() || 'jpg';
+      const safeExtension = ['jpg', 'jpeg', 'png', 'webp'].includes(extension) ? extension : 'jpg';
+      const destination = `${directory}machine_${Date.now()}.${safeExtension}`;
+      await copyAsync({ from: cleanUri, to: destination });
+      return destination;
+    } catch {
+      return cleanUri;
+    }
   }
 
   async function pickMachineImage(source: 'camera' | 'library', target: 'create' | 'edit' = 'create') {
@@ -263,14 +327,16 @@ export function useHomeScreen(session: AuthSession | null) {
       return;
     }
 
+    const persistedUri = await persistPickedMachineImage(result.assets[0].uri);
+
     if (target === 'edit') {
       setMachineEditFeedback(null);
-      updateMachineEditForm('image_uri', result.assets[0].uri);
+      updateMachineEditForm('image_uri', persistedUri);
       return;
     }
 
     setMachineCreateFeedback(null);
-    updateMachineCreateForm('image_uri', result.assets[0].uri);
+    updateMachineCreateForm('image_uri', persistedUri);
   }
 
   function buildMachineEditForm(detail: MachineDetail): MachineEditFormData {
@@ -464,7 +530,8 @@ export function useHomeScreen(session: AuthSession | null) {
 
         const result = await getMaquinas({
           q: appliedQuery.length > 0 ? appliedQuery : undefined,
-          filters,
+          ownership_type: inventoryOwnershipType,
+          filters: inventoryOwnershipType === 'TECARRAL' ? filters : undefined,
         });
 
         if (!ignore) {
@@ -488,7 +555,7 @@ export function useHomeScreen(session: AuthSession | null) {
     return () => {
       ignore = true;
     };
-  }, [activeTab, appliedQuery, filters, homeSubview, session]);
+  }, [activeTab, appliedQuery, filters, homeSubview, inventoryOwnershipType, session]);
 
   function toggleFilter(category: FilterCategoryKey, value: string) {
     setFilters((current) => {
@@ -682,10 +749,21 @@ export function useHomeScreen(session: AuthSession | null) {
       if (key === 'tipo') {
       return {
           ...EMPTY_MACHINE_CREATE_FORM,
+          subtipo: '',
           marca: current.marca,
           modelo: current.modelo,
           ns: current.ns,
           image_uri: current.image_uri,
+          ubicacion: current.ubicacion,
+          ubicacion_operativa_direccion: current.ubicacion_operativa_direccion,
+          ubicacion_operativa_poblacion: current.ubicacion_operativa_poblacion,
+          ubicacion_operativa_cp: current.ubicacion_operativa_cp,
+          owner_cliente_nombre: current.owner_cliente_nombre,
+          owner_cliente_email: current.owner_cliente_email,
+          owner_cliente_telefono: current.owner_cliente_telefono,
+          owner_cliente_direccion: current.owner_cliente_direccion,
+          owner_cliente_poblacion: current.owner_cliente_poblacion,
+          owner_cliente_cp: current.owner_cliente_cp,
           tipo: value as MachineCreateFormData['tipo'],
           motor: current.motor,
           seguro: current.seguro,
@@ -763,24 +841,43 @@ export function useHomeScreen(session: AuthSession | null) {
     return null;
   }
 
+
+  function parseDecimalInput(value: string) {
+    const normalized = String(value ?? '').trim().replace(',', '.');
+    if (!normalized) return NaN;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
   function validateRepairBudgetForm() {
     if (!activeRepair?.id_reparacion) {
       return 'No hay una reparación activa para crear el presupuesto.';
     }
 
-    if (!activeRepair.propuesta_alquiler_id) {
+    if (!isCustomerOwnedMachine && !activeRepair.propuesta_alquiler_id) {
       return 'La reparación no tiene propuesta de alquiler asociada.';
     }
 
-    if (!repairBudgetForm.importe_total.trim() || Number(repairBudgetForm.importe_total) < 0) {
-      return 'Introduce un importe total válido.';
+    const validItems = repairBudgetForm.items.filter(
+      (item) => item.descripcion.trim() || item.referencia.trim() || item.precio_unitario.trim()
+    );
+
+    if (validItems.length === 0) {
+      return 'Añade al menos una línea al presupuesto.';
     }
 
-    if (repairBudgetForm.payer_type !== 'CLIENTE' && repairBudgetForm.payer_type !== 'EMPRESA') {
-      return 'Selecciona quién paga la reparación.';
+    for (const [index, item] of validItems.entries()) {
+      const lineNumber = index + 1;
+      if (!item.descripcion.trim()) return `La línea ${lineNumber} necesita descripción.`;
+      if (!item.unidades.trim() || parseDecimalInput(item.unidades) <= 0) {
+        return `La línea ${lineNumber} necesita unidades mayores que 0.`;
+      }
+      if (!item.precio_unitario.trim() || parseDecimalInput(item.precio_unitario) < 0) {
+        return `La línea ${lineNumber} necesita un precio unitario válido.`;
+      }
     }
 
-    if (!repairBudgetForm.expira_at.trim() || !repairBudgetForm.expira_at.includes('T')) {
+if (!repairBudgetForm.expira_at.trim() || !repairBudgetForm.expira_at.includes('T')) {
       return 'expira_at debe ir en formato ISO, por ejemplo 2026-05-20T10:00:00.';
     }
 
@@ -807,10 +904,94 @@ export function useHomeScreen(session: AuthSession | null) {
   }
 
   function validateMachineCreateForm() {
+    if (!machineCreateForm.subtipo.trim()) return 'Selecciona el nombre o tipo de máquina.';
     if (!machineCreateForm.marca.trim()) return 'Introduce la marca.';
     if (!machineCreateForm.modelo.trim()) return 'Introduce el modelo.';
     if (!machineCreateForm.ns.trim()) return 'Introduce el número de serie.';
+
+    if (inventoryOwnershipType === 'CLIENTE') {
+      if (!machineCreateForm.owner_cliente_nombre.trim()) return 'Introduce el nombre del cliente propietario.';
+      if (!machineCreateForm.owner_cliente_email.trim()) return 'Introduce el email del cliente propietario.';
+      if (!isSimpleEmailValid(machineCreateForm.owner_cliente_email)) return 'Introduce un email de cliente válido.';
+      if (!machineCreateForm.owner_cliente_telefono.trim()) return 'Introduce el teléfono del cliente propietario.';
+      if (!isSimplePhoneValid(machineCreateForm.owner_cliente_telefono)) return 'Introduce un teléfono de cliente válido.';
+      if (!machineCreateForm.owner_cliente_direccion.trim()) return 'Introduce la dirección del cliente propietario.';
+      if (!machineCreateForm.owner_cliente_cp.trim()) return 'Introduce el código postal del cliente propietario.';
+      if (!machineCreateForm.owner_cliente_poblacion.trim()) return 'Introduce la población del cliente propietario.';
+      if (!machineCreateForm.ubicacion_operativa_direccion.trim()) return 'Introduce la dirección operativa de la máquina.';
+      if (!machineCreateForm.ubicacion_operativa_cp.trim()) return 'Introduce el código postal operativo de la máquina.';
+      if (!machineCreateForm.ubicacion_operativa_poblacion.trim()) return 'Introduce la población operativa de la máquina.';
+    }
+
     return null;
+  }
+
+
+  function openServiceContractForm() {
+    if (!selectedMachineDetail || !isCustomerOwnedMachine) return;
+
+    setServiceContractForm({
+      ...EMPTY_SERVICE_CONTRACT_FORM,
+      cliente_nombre: String(selectedMachineDetail.owner_cliente_nombre ?? ''),
+      cliente_email: String(selectedMachineDetail.owner_cliente_email ?? ''),
+      cliente_telefono: String(selectedMachineDetail.owner_cliente_telefono ?? ''),
+      cliente_direccion: String(selectedMachineDetail.owner_cliente_direccion ?? ''),
+      cliente_poblacion: String(selectedMachineDetail.owner_cliente_poblacion ?? ''),
+      cliente_cp: String(selectedMachineDetail.owner_cliente_cp ?? ''),
+    });
+    setServiceContractFeedback(null);
+    setHomeSubview('serviceContractForm');
+  }
+
+  function updateServiceContractForm<K extends keyof ServiceContractCreateFormData>(
+    key: K,
+    value: ServiceContractCreateFormData[K]
+  ) {
+    setServiceContractForm((current) => ({ ...current, [key]: value }));
+    setServiceContractFeedback(null);
+  }
+
+  function validateServiceContractForm() {
+    if (!serviceContractForm.tarifa_fija.trim() || Number(serviceContractForm.tarifa_fija) <= 0) {
+      return 'Introduce una tarifa fija v?lida.';
+    }
+    if (!serviceContractForm.start_date.trim()) return 'Selecciona la fecha de inicio.';
+    if (serviceContractForm.recurrencia_unidad === 'WEEK' && !serviceContractForm.maintenance_weekday) {
+      return 'Selecciona el día de visita semanal.';
+    }
+    if (serviceContractForm.recurrencia_unidad === 'MONTH') {
+      const day = Number(serviceContractForm.maintenance_day_of_month);
+      if (!Number.isInteger(day) || day < 1 || day > 31) return 'Introduce un día del mes válido.';
+    }
+    if (!serviceContractForm.cliente_nombre.trim()) return 'Introduce el nombre del cliente.';
+    if (!isSimpleEmailValid(serviceContractForm.cliente_email)) return 'Introduce un email válido.';
+    return null;
+  }
+
+  async function handleCreateServiceContract() {
+    if (!session?.token || !selectedMachineDetail || !isCustomerOwnedMachine) return;
+
+    const validationError = validateServiceContractForm();
+    if (validationError) {
+      setServiceContractFeedback(validationError);
+      return;
+    }
+
+    try {
+      setServiceContractSubmitting(true);
+      setServiceContractFeedback(null);
+      await createServiceContract(
+        { ...serviceContractForm, id_maquina: selectedMachineDetail.id_maquina },
+        session.token
+      );
+      setHomeSubview('detail');
+      showTemporaryDetailSuccess('Contrato de mantenimiento creado correctamente.');
+      void loadMachineContext(selectedMachineDetail.id_maquina, { silent: true });
+    } catch (error) {
+      await handleApiError(error, setServiceContractFeedback, 'No se pudo crear el contrato.');
+    } finally {
+      setServiceContractSubmitting(false);
+    }
   }
 
   async function handleCreateProposal() {
@@ -879,17 +1060,25 @@ export function useHomeScreen(session: AuthSession | null) {
     try {
       setRepairBudgetSubmitting(true);
       setRepairBudgetFeedback(null);
-      const payerType = repairBudgetForm.payer_type === 'CLIENTE' ? 'CLIENTE' : 'EMPRESA';
+      const items = repairBudgetForm.items
+        .filter((item) => item.descripcion.trim() || item.referencia.trim() || item.precio_unitario.trim())
+        .map((item) => ({
+          referencia: item.referencia.trim() || null,
+          descripcion: item.descripcion.trim(),
+          unidades: parseDecimalInput(item.unidades),
+          precio_unitario: parseDecimalInput(item.precio_unitario),
+        }));
 
       const response = await createRepairBudget(
         {
           reparacion_id: activeRepair.id_reparacion,
-          propuesta_alquiler_id: Number(activeRepair.propuesta_alquiler_id),
-          importe_total: Number(repairBudgetForm.importe_total),
+          propuesta_alquiler_id: activeRepair.propuesta_alquiler_id
+            ? Number(activeRepair.propuesta_alquiler_id)
+            : undefined,
+          items,
+          iva_rate: 21,
           condiciones: repairBudgetForm.condiciones.trim() || null,
           expira_at: repairBudgetForm.expira_at,
-          payer_type: payerType,
-          charge_reason: payerType === 'CLIENTE' ? 'GOLPE_ACCIDENTE' : null,
         },
         session.token
       );
@@ -997,7 +1186,11 @@ export function useHomeScreen(session: AuthSession | null) {
       setMachineCreateSubmitting(true);
       setMachineCreateFeedback(null);
 
-      const createdMachine = await createMachine(machineCreateForm, session.token);
+      const createdMachine = await createMachine(
+        machineCreateForm,
+        session.token,
+        inventoryOwnershipType
+      );
       const uploadedMachine = machineCreateForm.image_uri.trim()
         ? await uploadMachineImage(
             createdMachine.id_maquina,
@@ -1045,10 +1238,11 @@ export function useHomeScreen(session: AuthSession | null) {
       setDetailFeedback(null);
 
       if (nextLocation === 'CLIENTE') {
-        await markMachineDelivered(selectedMachineDetail.id_maquina, session.token);
-        patchMachineCaches(selectedMachineDetail.id_maquina, {
+        const deliveredResult = await markMachineDelivered(selectedMachineDetail.id_maquina, session.token);
+        const deliveredMachine = deliveredResult.data ?? null;
+        patchMachineCaches(selectedMachineDetail.id_maquina, deliveredMachine ?? {
           ubicacion_tipo: 'CLIENTE',
-          logistics_status: 'ENTREGADA',
+          logistics_status: isCustomerOwnedMachine ? null : 'ENTREGADA',
           transit_reason: null,
           ubicacion:
             acceptedProposal?.direccion && acceptedProposal?.poblacion
@@ -1162,9 +1356,20 @@ export function useHomeScreen(session: AuthSession | null) {
 
     const acceptedProposal = getAcceptedProposal(selectedMachineProposals);
 
-    if (currentStatus === 'OK' && !acceptedProposal) {
+    if (currentStatus === 'OK' && !acceptedProposal && !isCustomerOwnedMachine) {
       setDetailFeedback('La máquina necesita una propuesta aceptada para abrir incidencia.');
       return;
+    }
+
+    if (isCustomerOwnedMachine && currentStatus === 'OK') {
+      if (nextStatus !== 'AVERIADA') {
+        setDetailFeedback('Las máquinas de cliente deben abrirse primero como avería simple.');
+        return;
+      }
+      if (!incidenceServiceCaseType || !incidenceFaultCause) {
+        setDetailFeedback('Indica si es cliente habitual o nuevo y la causa de la avería.');
+        return;
+      }
     }
 
     try {
@@ -1180,23 +1385,37 @@ export function useHomeScreen(session: AuthSession | null) {
           session.token
         );
       } else {
-        if (!acceptedProposal) {
+        if (!acceptedProposal && !isCustomerOwnedMachine) {
           setDetailFeedback('La máquina necesita una propuesta aceptada para abrir incidencia.');
           return;
         }
 
+        const serviceContractId = Number(selectedMachineDetail.service_contract_id ?? 0);
         await openMachineIncidence(
           selectedMachineDetail.id_maquina,
-          {
-            maintenance_status: nextStatus,
-            propuesta_alquiler_id: acceptedProposal.id,
-            comentario: incidenceComment.trim(),
-          },
+          isCustomerOwnedMachine
+            ? {
+                maintenance_status: 'AVERIADA',
+                service_context_type: serviceContractId > 0
+                  ? 'CONTRATO_MANTENIMIENTO'
+                  : 'REPARACION_PUNTUAL_CLIENTE',
+                service_context_id: serviceContractId > 0 ? serviceContractId : selectedMachineDetail.id_maquina,
+                service_case_type: incidenceServiceCaseType || null,
+                fault_cause: incidenceFaultCause || null,
+                comentario: incidenceComment.trim(),
+              }
+            : {
+                maintenance_status: nextStatus,
+                propuesta_alquiler_id: acceptedProposal?.id ?? null,
+                comentario: incidenceComment.trim(),
+              },
           session.token
         );
       }
 
       resetPendingIncidenceSelection(nextStatus);
+      setIncidenceServiceCaseType('');
+      setIncidenceFaultCause('');
       patchMachineCaches(selectedMachineDetail.id_maquina, {
         maintenance_status: nextStatus,
         ubicacion_tipo:
@@ -1215,6 +1434,8 @@ export function useHomeScreen(session: AuthSession | null) {
 
   function handleCancelIncidenceDraft() {
     resetPendingIncidenceSelection();
+    setIncidenceServiceCaseType('');
+    setIncidenceFaultCause('');
     setDetailFeedback(null);
   }
 
@@ -1306,6 +1527,15 @@ export function useHomeScreen(session: AuthSession | null) {
     setSuggestions([]);
   }
 
+  function handleInventoryOwnershipChange(nextOwnershipType: InventoryOwnershipType) {
+    setInventoryOwnershipType(nextOwnershipType);
+    setFilterPanelOpen(false);
+    setFilters(EMPTY_FILTERS);
+    setMachines([]);
+    setFeedback(null);
+    setHomeSubview('list');
+  }
+
   function handleToggleFilterPanel() {
     setFilterPanelOpen((open) => !open);
   }
@@ -1319,6 +1549,7 @@ export function useHomeScreen(session: AuthSession | null) {
     query,
     setQuery,
     filters,
+    inventoryOwnershipType,
     filterPanelOpen,
     suggestions,
     loadingMachines,
@@ -1347,9 +1578,15 @@ export function useHomeScreen(session: AuthSession | null) {
     repairBudgetForm,
     repairBudgetSubmitting,
     repairBudgetFeedback,
+    serviceContractForm,
+    serviceContractFeedback,
+    serviceContractSubmitting,
+    incidenceServiceCaseType,
+    incidenceFaultCause,
     machineCreateForm,
     machineCreateFeedback,
     machineCreateSubmitting,
+    machineCreateSubtipoOpen,
     machineCreateTipoOpen,
     machineCreateMotorOpen,
     machineCreateSeguroOpen,
@@ -1363,6 +1600,7 @@ export function useHomeScreen(session: AuthSession | null) {
     machineEditSeguroOpen,
     machineEditElevationLibreOpen,
     machineEditAntihuellaOpen,
+    machineSubtipoOptions,
     machineTipoOptions,
     machineMotorOptions,
     machineSeguroOptions,
@@ -1377,11 +1615,14 @@ export function useHomeScreen(session: AuthSession | null) {
     canCreateProposal,
     canCreateMachine,
     canOpenProposalForm,
+    canCreateServiceContract,
+    isCustomerOwnedMachine,
     proposalButtonDisabledReason,
     showRepairBudgetButton,
     canCreateRepairBudget,
     repairBudgetDisabledReason,
     canMarkDelivered,
+    canUseLocationFlow,
     canSubmitIncidence,
     incidenceEscalationMode,
     toggleFilter,
@@ -1391,14 +1632,17 @@ export function useHomeScreen(session: AuthSession | null) {
     openProposalDetail,
     openCreateMachineForm,
     openRepairBudgetForm,
+    openServiceContractForm,
     updateProposalForm,
     updateRepairBudgetForm,
+    updateServiceContractForm,
     updateMachineCreateForm,
     pickMachineImage,
     updateMachineEditForm,
     handleCreateProposal,
     handleCreateMachine,
     handleCreateRepairBudget,
+    handleCreateServiceContract,
     handleOpenMachineEdit,
     handleCancelMachineEdit,
     handleSaveMachineEdit,
@@ -1413,15 +1657,19 @@ export function useHomeScreen(session: AuthSession | null) {
     handleToggleStatusPicker,
     handleSelectSuggestion,
     handleToggleFilterPanel,
+    handleInventoryOwnershipChange,
     setHomeSubview,
     setProposalsExpanded,
     setNavigationModalOpen,
     setIncidenceComment,
+    setIncidenceServiceCaseType,
+    setIncidenceFaultCause,
     setMachineEditTipoOpen,
     setMachineEditMotorOpen,
     setMachineEditSeguroOpen,
     setMachineEditElevationLibreOpen,
     setMachineEditAntihuellaOpen,
+    setMachineCreateSubtipoOpen,
     setMachineCreateTipoOpen,
     setMachineCreateMotorOpen,
     setMachineCreateSeguroOpen,

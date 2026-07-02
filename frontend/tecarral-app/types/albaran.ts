@@ -4,11 +4,17 @@ export type AlbaranScreenView =
   | 'unsignedDetail'
   | 'signatureTecnico'
   | 'signatureCliente'
-  | 'signedDetail';
+  | 'signedDetail'
+  | 'contractDetail'
+  | 'contractSignature'
+  | 'repairBudgetDetail'
+  | 'repairBudgetSignature';
 export type SignatureStep = 'tecnico' | 'cliente';
 
 export interface AlbaranListItem {
   id_albaran: number;
+  document_number?: string | null;
+  document_kind?: string | null;
   estado: AlbaranStatus;
   firmado_at?: string | null;
   id_maquina: number;
@@ -35,10 +41,16 @@ export interface FirmarAlbaranPayload {
 
 export interface FirmarAlbaranResponse {
   id_albaran: number;
+  document_number?: string | null;
+  document_kind?: string | null;
   estado: AlbaranStatus;
   firmado: boolean;
   maintenance_status?: string | null;
   reparacion_paso_a_pendiente_presupuesto?: boolean;
   email_sent?: boolean;
   email_error?: string | null;
+  pdf_generated?: boolean;
+  pdf_sha256?: string | null;
+  customer_delivery_status?: 'PENDING' | 'SENT' | 'ERROR';
+  internal_delivery_status?: 'PENDING' | 'SENT' | 'ERROR';
 }

@@ -6,12 +6,20 @@ export interface ActiveRepairSummary {
   comentario: string | null;
   solucion_aplicada: string | null;
   estado: string;
+  created_at?: string | null;
+  fault_cause?: 'DESGASTE_USO' | 'GOLPE_ACCIDENTE' | null;
+  service_case_type?: 'CLIENTE_HABITUAL' | 'CLIENTE_NUEVO' | null;
+  service_context_type?: 'ALQUILER' | 'CONTRATO_MANTENIMIENTO' | 'REPARACION_PUNTUAL_CLIENTE' | null;
+  service_context_id?: number | null;
+  contract_type?: 'PREVENTIVO' | 'TODO_INCLUIDO' | string | null;
   albaran_estado: string | null;
   propuesta_alquiler_id: number | null;
   presupuesto_reparacion_id: number | null;
   presupuesto_estado: string | null;
   presupuesto_payer_type: 'CLIENTE' | 'EMPRESA' | null;
   presupuesto_charge_reason: 'GOLPE_ACCIDENTE' | null;
+  presupuesto_coverage_decision?: 'CLIENTE' | 'TECARRAL' | null;
+  presupuesto_coverage_reason?: string | null;
 }
 
 export interface RepairListItem extends ActiveRepairSummary {
@@ -42,8 +50,16 @@ export interface AssignableUser {
 }
 
 export interface RepairBudgetFormData {
-  importe_total: string;
+  items: Array<{
+    referencia: string;
+    descripcion: string;
+    unidades: string;
+    precio_unitario: string;
+  }>;
   condiciones: string;
   expira_at: string;
   payer_type: 'CLIENTE' | 'EMPRESA' | '';
+  fault_cause: 'DESGASTE_USO' | 'GOLPE_ACCIDENTE' | '';
+  contract_type: 'PREVENTIVO' | 'TODO_INCLUIDO' | '';
 }
+

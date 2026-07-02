@@ -78,7 +78,7 @@ export function getMachineImageSource(machine: Pick<Maquina, 'modelo' | 'image_u
 
 export function formatDisplayValue(value: unknown) {
   if (value === null || value === undefined) return '-';
-  if (typeof value === 'boolean') return value ? 'Si' : 'No';
+  if (typeof value === 'boolean') return value ? 'S?' : 'No';
 
   const text = stripAccents(value).trim();
   return text.length > 0 ? text : '-';
@@ -88,9 +88,9 @@ export function formatLocationLabel(value: unknown) {
   const key = stripAccents(value).trim().toUpperCase();
 
   if (key === 'TALLER') return 'Taller';
-  if (key === 'ALMACEN') return 'Almacen';
+  if (key === 'ALMACEN') return 'Almac?n';
   if (key === 'CLIENTE') return 'Cliente';
-  if (key === 'TRANSITO') return 'Transito';
+  if (key === 'TRANSITO') return 'Tr?nsito';
   return formatDisplayValue(value);
 }
 
@@ -105,6 +105,8 @@ export function formatMaintenanceLabel(value: unknown) {
 
 export function machineMatchesFilters(machine: Maquina, filters: MachineFilters) {
   const availabilityValue = String(machine.availability_status ?? '').trim().toUpperCase();
+  const contractValue = String(machine.service_contract_type ?? '').trim().toUpperCase();
+  const maintenanceValue = String(machine.maintenance_status ?? '').trim().toUpperCase();
   const tipoValue = normalizeValue(machine.tipo_maquina);
   const subtipoValue = normalizeValue(machine.tipo);
   const motorValue = normalizeValue(machine.motor);
@@ -112,6 +114,12 @@ export function machineMatchesFilters(machine: Maquina, filters: MachineFilters)
 
   const matchesAvailability =
     filters.availability.length === 0 || filters.availability.includes(availabilityValue);
+  const matchesContract =
+    filters.service_contract.length === 0 ||
+    filters.service_contract.some((value) => {
+      const normalized = String(value).trim().toUpperCase();
+      return normalized === contractValue || normalized === maintenanceValue;
+    });
   const matchesTipo =
     filters.tipo.length === 0 ||
     filters.tipo.some((value) => normalizeValue(value) === tipoValue);
@@ -126,6 +134,7 @@ export function machineMatchesFilters(machine: Maquina, filters: MachineFilters)
 
   return (
     matchesAvailability &&
+    matchesContract &&
     matchesTipo &&
     matchesSubtipo &&
     matchesMotor &&
@@ -165,6 +174,14 @@ export function getLocationOptions(
   const maintenance = stripAccents(detail.maintenance_status).trim().toUpperCase();
   const transitReason = stripAccents(detail.transit_reason).trim().toUpperCase();
   const hasAcceptedProposal = proposals.some((proposal) => proposal.estado === 'ACEPTADA');
+  const isCustomerOwned = stripAccents(detail.ownership_type).trim().toUpperCase() === 'CLIENTE';
+  const activeRepair = detail.active_repair ?? null;
+  const activeRepairAlbaranSigned = stripAccents(activeRepair?.albaran_estado ?? '').trim().toUpperCase() === 'FIRMADO';
+  const canSendCustomerMachineToWorkshop =
+    isCustomerOwned &&
+    maintenance === 'AVERIADA_GRAVE' &&
+    activeRepair !== null &&
+    activeRepairAlbaranSigned;
   const options = new Set<string>();
 
   if (current.length > 0) {
@@ -178,8 +195,13 @@ export function getLocationOptions(
       options.add('TALLER');
       options.add('ALMACEN');
     } else if (maintenance === 'AVERIADA_GRAVE') {
-      options.add('TALLER');
-      options.add('ALMACEN');
+      if (!isCustomerOwned || activeRepairAlbaranSigned) {
+        options.add('TALLER');
+        options.add('ALMACEN');
+      }
+      if (isCustomerOwned) {
+        options.add('CLIENTE');
+      }
     } else if (hasAcceptedProposal) {
       options.add('CLIENTE');
     } else {
@@ -194,6 +216,14 @@ export function getLocationOptions(
     }
   } else if (current === 'CLIENTE') {
     options.add('CLIENTE');
+    if (!isCustomerOwned && maintenance === 'AVERIADA_GRAVE') {
+      options.add('TALLER');
+      options.add('ALMACEN');
+    }
+    if (canSendCustomerMachineToWorkshop) {
+      options.add('TALLER');
+      options.add('ALMACEN');
+    }
   }
 
   return Array.from(options).map((value) => ({

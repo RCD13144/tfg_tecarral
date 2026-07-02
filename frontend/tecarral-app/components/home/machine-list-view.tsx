@@ -6,13 +6,21 @@ import { MachineCard } from '@/components/home/machine-card';
 import { ScreenHeader } from '@/components/shared/screen-header';
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
-import type { FilterCategoryKey, MachineFilters, Maquina, SearchSuggestion } from '@/types/maquina';
+import type {
+  FilterCategoryKey,
+  InventoryOwnershipType,
+  MachineFilters,
+  Maquina,
+  SearchSuggestion,
+} from '@/types/maquina';
 
 export function MachineListView({
   query,
   onQueryChange,
   activeFilterCount,
   filterPanelOpen,
+  inventoryOwnershipType,
+  onChangeInventoryOwnership,
   onToggleFilterPanel,
   suggestions,
   loadingSuggestions,
@@ -32,6 +40,8 @@ export function MachineListView({
   onQueryChange: (value: string) => void;
   activeFilterCount: number;
   filterPanelOpen: boolean;
+  inventoryOwnershipType: InventoryOwnershipType;
+  onChangeInventoryOwnership: (ownershipType: InventoryOwnershipType) => void;
   onToggleFilterPanel: () => void;
   suggestions: SearchSuggestion[];
   loadingSuggestions: boolean;
@@ -63,7 +73,9 @@ export function MachineListView({
           />
         </View>
 
-        <Pressable style={homeStyles.filterButton} onPress={onToggleFilterPanel}>
+        <Pressable
+          style={homeStyles.filterButton}
+          onPress={onToggleFilterPanel}>
           <Text style={homeStyles.filterButtonText}>
             Filtrar{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </Text>
@@ -75,6 +87,31 @@ export function MachineListView({
           </Pressable>
         ) : null}
       </View>
+
+      <View style={homeStyles.inventoryTabsRow}>
+        {([
+          { label: 'Tecarral', value: 'TECARRAL' },
+          { label: 'Clientes', value: 'CLIENTE' },
+        ] as const).map((option) => {
+          const selected = inventoryOwnershipType === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChangeInventoryOwnership(option.value)}
+              style={[homeStyles.inventoryTabButton, selected && homeStyles.inventoryTabButtonActive]}>
+              <Text style={[homeStyles.inventoryTabText, selected && homeStyles.inventoryTabTextActive]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={homeStyles.inventoryTabsHint}>
+        {inventoryOwnershipType === 'CLIENTE'
+          ? 'Inventario de máquinas propiedad de clientes'
+          : 'Inventario de máquinas propiedad de Tecarral'}
+      </Text>
 
       {query.trim().length >= 2 && (suggestions.length > 0 || loadingSuggestions) ? (
         <View style={homeStyles.suggestionsBox}>
@@ -100,6 +137,7 @@ export function MachineListView({
             filters={filters}
             onClose={onToggleFilterPanel}
             onToggle={onToggleFilter}
+            inventoryOwnershipType={inventoryOwnershipType}
           />
           <View style={homeStyles.filterPanelSpacer} />
         </>

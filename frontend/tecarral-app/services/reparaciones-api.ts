@@ -27,9 +27,11 @@ export function finishRepair(
 ) {
   return apiRequest<{
     id_reparacion: number;
+    id_maquina: number;
     estado_anterior: string;
     estado_actual: string;
     solucion_aplicada: string | null;
+    maintenance_status_actual: 'OK';
   }>(`/reparaciones/${idReparacion}/terminar`, {
     method: 'PATCH',
     token,

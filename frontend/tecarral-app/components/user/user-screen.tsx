@@ -1,4 +1,4 @@
-import { Pressable, Text, TextInput, View } from 'react-native';
+﻿import { Pressable, Text, TextInput, View } from 'react-native';
 import { useState } from 'react';
 
 import { SelectorField } from '@/components/home/selector-field';
@@ -40,8 +40,8 @@ export function UserScreen({
 
       <Text style={userStyles.title}>Usuario</Text>
       <Text style={userStyles.subtitle}>
-        Aquí puedes consultar tu información y actualizar los datos que tienen sentido modificar
-        desde la app.
+        Aquí puedes consultar tu información y actualizar los datos que tienen sentido
+        modificar desde la app.
       </Text>
 
       <View style={userStyles.card}>
@@ -63,8 +63,8 @@ export function UserScreen({
         </Text>
 
         <Text style={userStyles.readonlyHint}>
-          Por seguridad, email, nombre y rol se muestran en solo lectura. El teléfono sí puede
-          actualizarse desde aquí.
+          Por seguridad, email, nombre y rol se muestran en solo lectura. El teléfono sí
+          puede actualizarse desde aquí.
         </Text>
 
         <Text style={userStyles.inputLabel}>Teléfono</Text>
@@ -226,7 +226,7 @@ export function UserScreen({
                   <Text style={userStyles.label}>Rol: </Text>
                   <Text style={userStyles.value}>{user.registeredUserSummary.role}</Text>
                 </Text>
-                <Text style={userStyles.sectionTitle}>Contrasena temporal</Text>
+                <Text style={userStyles.sectionTitle}>Contraseña temporal</Text>
                 <Text style={userStyles.temporaryPasswordText}>
                   {user.registeredUserSummary.temporaryPassword}
                 </Text>
@@ -236,6 +236,36 @@ export function UserScreen({
                 </Text>
               </View>
             ) : null}
+          </View>
+
+          <View style={userStyles.card}>
+            <Text style={userStyles.cardTitle}>Notificaciones</Text>
+            {user.notificationsFeedback ? (
+              <Text style={userStyles.feedback}>{user.notificationsFeedback}</Text>
+            ) : null}
+            <Pressable
+              onPress={() => void user.markEveryNotificationRead()}
+              style={[userStyles.actionButton, userStyles.secondaryButtonCompact]}>
+              <Text style={userStyles.actionButtonText}>Marcar todas como leídas</Text>
+            </Pressable>
+            {user.notificationsLoading ? (
+              <Text style={userStyles.listHint}>Cargando notificaciones...</Text>
+            ) : user.notifications.length === 0 ? (
+              <Text style={userStyles.listHint}>No hay notificaciones.</Text>
+            ) : (
+              user.notifications.map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => void user.markOneNotificationRead(item.id)}
+                  style={userStyles.temporaryPasswordBox}>
+                  <Text style={userStyles.sectionTitle}>{item.title}</Text>
+                  <Text style={userStyles.line}>{item.message}</Text>
+                  <Text style={userStyles.listHint}>
+                    {item.is_read ? 'Leída' : 'Pendiente'} · {item.created_at}
+                  </Text>
+                </Pressable>
+              ))
+            )}
           </View>
 
           <View style={userStyles.card}>

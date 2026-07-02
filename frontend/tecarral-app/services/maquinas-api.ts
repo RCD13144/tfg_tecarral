@@ -15,6 +15,10 @@ function buildMachineQuery(params: MachineQueryParams = {}) {
     searchParams.set('q', params.q.trim());
   }
 
+  if (params.ownership_type) {
+    searchParams.set('ownership_type', params.ownership_type);
+  }
+
   if (params.filters) {
     for (const value of params.filters.availability) {
       searchParams.append('availability', value);
@@ -89,13 +93,26 @@ export function updateMachineDetail(
   });
 }
 
-export function createMachine(data: MachineCreateFormData, token: string) {
+export function createMachine(
+  data: MachineCreateFormData,
+  token: string,
+  ownershipType: 'TECARRAL' | 'CLIENTE' = 'TECARRAL'
+) {
   const isElevation = data.tipo === 'elevacion';
+  const customerOperationalAddress = [
+    data.ubicacion_operativa_direccion,
+    data.ubicacion_operativa_cp,
+    data.ubicacion_operativa_poblacion,
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(', ');
 
   return apiRequest<MachineDetail>('/maquinas', {
     method: 'POST',
     token,
     body: {
+      subtipo: data.subtipo.trim(),
       marca: data.marca.trim(),
       modelo: data.modelo.trim(),
       ns: data.ns.trim(),
@@ -104,6 +121,26 @@ export function createMachine(data: MachineCreateFormData, token: string) {
       seguro: data.seguro === '' ? undefined : data.seguro === 'true',
       num_poliza: data.num_poliza.trim() || undefined,
       observaciones: data.observaciones.trim() || undefined,
+      ownership_type: ownershipType,
+      ubicacion: ownershipType === 'CLIENTE' ? customerOperationalAddress : undefined,
+      ubicacion_operativa_direccion:
+        ownershipType === 'CLIENTE' ? data.ubicacion_operativa_direccion.trim() : undefined,
+      ubicacion_operativa_poblacion:
+        ownershipType === 'CLIENTE' ? data.ubicacion_operativa_poblacion.trim() : undefined,
+      ubicacion_operativa_cp:
+        ownershipType === 'CLIENTE' ? data.ubicacion_operativa_cp.trim() : undefined,
+      owner_cliente_nombre:
+        ownershipType === 'CLIENTE' ? data.owner_cliente_nombre.trim() : undefined,
+      owner_cliente_email:
+        ownershipType === 'CLIENTE' ? data.owner_cliente_email.trim() : undefined,
+      owner_cliente_telefono:
+        ownershipType === 'CLIENTE' ? data.owner_cliente_telefono.trim() : undefined,
+      owner_cliente_direccion:
+        ownershipType === 'CLIENTE' ? data.owner_cliente_direccion.trim() : undefined,
+      owner_cliente_poblacion:
+        ownershipType === 'CLIENTE' ? data.owner_cliente_poblacion.trim() : undefined,
+      owner_cliente_cp:
+        ownershipType === 'CLIENTE' ? data.owner_cliente_cp.trim() : undefined,
       elev_ruedas: isElevation ? data.elev_ruedas.trim() || undefined : undefined,
       elev_cap_carga: isElevation ? data.elev_cap_carga.trim() || undefined : undefined,
       elev_replegado_mm: isElevation ? data.elev_replegado_mm.trim() || undefined : undefined,
@@ -146,7 +183,11 @@ export function openMachineIncidence(
   idMaquina: number,
   payload: {
     maintenance_status: 'AVERIADA' | 'AVERIADA_GRAVE';
-    propuesta_alquiler_id: number;
+    propuesta_alquiler_id?: number | null;
+    service_context_type?: 'ALQUILER' | 'CONTRATO_MANTENIMIENTO' | 'REPARACION_PUNTUAL_CLIENTE' | null;
+    service_context_id?: number | null;
+    service_case_type?: 'CLIENTE_HABITUAL' | 'CLIENTE_NUEVO' | null;
+    fault_cause?: 'DESGASTE_USO' | 'GOLPE_ACCIDENTE' | null;
     comentario: string;
   },
   token: string
@@ -201,7 +242,7 @@ export function markMachineArrivedAtBase(
 }
 
 export function markMachineDelivered(idMaquina: number, token: string) {
-  return apiRequest<{ ok: boolean }>(`/maquinas/${idMaquina}/mark-delivered`, {
+  return apiRequest<{ ok: boolean; data?: Maquina | null }>(`/maquinas/${idMaquina}/mark-delivered`, {
     method: 'POST',
     token,
   });
@@ -255,3 +296,4 @@ export async function getMachineSuggestions(text: string, token: string) {
 
   return Array.from(deduped.values()).slice(0, 10);
 }
+

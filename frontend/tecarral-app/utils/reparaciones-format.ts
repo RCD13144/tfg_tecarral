@@ -42,6 +42,14 @@ export function canAssignRepair(item: RepairListItem, isAdmin: boolean) {
   return isAdmin && normalizeValue(item.maintenance_status) === 'AVERIADA_GRAVE';
 }
 
+function isAllIncludedCoveredRepair(item: RepairListItem) {
+  return (
+    isGraveRepair(item) &&
+    normalizeValue(item.contract_type) === 'TODO_INCLUIDO' &&
+    normalizeValue(item.fault_cause) !== 'GOLPE_ACCIDENTE'
+  );
+}
+
 function isAssignedToCurrentUser(item: RepairListItem, currentUserId: number | null) {
   const assignedUserId = normalizePositiveId(item.id_user_asignado);
   return assignedUserId !== null && currentUserId !== null && assignedUserId === currentUserId;
@@ -64,7 +72,7 @@ export function canFinishRepair(
   }
 
   return (
-    normalizeValue(item.estado) === 'PRESUPUESTO_ACEPTADO' &&
+    (normalizeValue(item.estado) === 'PRESUPUESTO_ACEPTADO' || isAllIncludedCoveredRepair(item)) &&
     normalizePositiveId(item.id_user_asignado) !== null
   );
 }

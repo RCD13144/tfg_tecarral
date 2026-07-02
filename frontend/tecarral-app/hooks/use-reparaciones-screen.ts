@@ -178,7 +178,7 @@ export function useReparacionesScreen(session: AuthSession | null, visible: bool
 
       await finishRepair(repairId, solutionText.length > 0 ? solutionText : null, session.token);
 
-      setReparaciones((current) => current.filter((item) => item.id_reparacion !== repairId));
+      await refresh();
       setSelectedAssignees((current) => {
         const next = { ...current };
         delete next[repairId];

@@ -5,11 +5,7 @@ import { AlbaranFieldRow } from '@/components/albaranes/albaran-field-row';
 import { AppColors } from '@/constants/theme';
 import { albaranesStyles } from '@/styles/albaranes.styles';
 import type { AlbaranDetail } from '@/types/albaran';
-import {
-  formatAlbaranDate,
-  getAlbaranSubtitle,
-  getAlbaranTitle,
-} from '@/utils/albaranes-format';
+import { formatAlbaranDate, getAlbaranSubtitle, getAlbaranTitle } from '@/utils/albaranes-format';
 
 export function SignedAlbaranDetailView({
   albaran,
@@ -33,12 +29,13 @@ export function SignedAlbaranDetailView({
         <Text style={albaranesStyles.detailTitle}>{getAlbaranTitle(albaran)}</Text>
         <Text style={albaranesStyles.detailSubtitle}>{getAlbaranSubtitle(albaran)}</Text>
 
+        <AlbaranFieldRow label="Número" value={albaran.document_number ?? `#${albaran.id_albaran}`} />
         <AlbaranFieldRow label="Estado" value={albaran.estado} />
         <AlbaranFieldRow label="Fecha firma" value={formatAlbaranDate(albaran.firmado_at)} />
         <AlbaranFieldRow label="Máquina" value={`#${albaran.id_maquina}`} />
         <AlbaranFieldRow label="Marca" value={albaran.marca} />
         <AlbaranFieldRow label="Modelo" value={albaran.modelo} />
-        <AlbaranFieldRow label="Nº de serie" value={albaran.ns} />
+        <AlbaranFieldRow label="N.º de serie" value={albaran.ns} />
         <AlbaranFieldRow label="Cliente" value={albaran.cliente} />
         <AlbaranFieldRow label="Email cliente" value={albaran.email_cliente} />
         <AlbaranFieldRow label="Teléfono" value={albaran.telefono} />

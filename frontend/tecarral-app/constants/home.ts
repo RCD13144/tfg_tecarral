@@ -6,6 +6,7 @@ import type {
   MachineEditFormData,
   MachineFilters,
   ProposalFormData,
+  ServiceContractCreateFormData,
 } from '@/types/maquina';
 import type { RepairBudgetFormData } from '@/types/reparacion';
 
@@ -15,7 +16,7 @@ export const TAB_BAR_INNER_PADDING = 8;
 export const TAB_ICON_SIZE = 30;
 export const TAB_KEYS: HomeTabKey[] = ['home', 'albaran', 'reparacion', 'user'];
 
-export const FILTER_DEFINITIONS: {
+export const TECARRAL_FILTER_DEFINITIONS: {
   key: FilterCategoryKey;
   label: string;
   options: { label: string; value: string }[];
@@ -42,7 +43,7 @@ export const FILTER_DEFINITIONS: {
     label: 'Subtipo',
     options: [
       { label: 'Carretillas elevadoras', value: 'Carretilla elevad.' },
-      { label: 'Retráctiles', value: 'Retractil' },
+      { label: 'Retráctiles', value: 'Retráctil' },
       { label: 'Plataformas de tijera', value: 'Plataforma tijera' },
       { label: 'Barredoras', value: 'Barredora' },
       { label: 'Plataformas articuladas', value: 'Plataforma artic.' },
@@ -50,7 +51,7 @@ export const FILTER_DEFINITIONS: {
       { label: 'Transpaletas eléctricas', value: 'Transpaleta eléctr.' },
       { label: 'Preparapedidos', value: 'Preparapedidos' },
       { label: 'Transpaletas manuales', value: 'Transpaleta manual' },
-      { label: 'Criógenas', value: 'Criogena' },
+      { label: 'Criógenas', value: 'Criógena' },
       { label: 'Limpia-moquetas', value: 'Limpiamoquetas' },
       { label: 'Hidrolimpiadoras', value: 'Hidrolimpiadora' },
       { label: 'Apiladores', value: 'Apilador' },
@@ -81,8 +82,30 @@ export const FILTER_DEFINITIONS: {
   },
 ];
 
+
+export const CLIENT_FILTER_DEFINITIONS: {
+  key: FilterCategoryKey;
+  label: string;
+  options: { label: string; value: string }[];
+}[] = [
+  {
+    key: 'service_contract',
+    label: 'Tipo de contrato',
+    options: [
+      { label: 'Mantenimiento preventivo', value: 'PREVENTIVO' },
+      { label: 'Mantenimiento todo incluido', value: 'TODO_INCLUIDO' },
+      { label: 'Averiadas', value: 'AVERIADA' },
+      { label: 'Averiadas graves', value: 'AVERIADA_GRAVE' },
+    ],
+  },
+  ...TECARRAL_FILTER_DEFINITIONS.filter((definition) => definition.key !== 'availability'),
+];
+
+export const FILTER_DEFINITIONS = TECARRAL_FILTER_DEFINITIONS;
+
 export const EMPTY_FILTERS: MachineFilters = {
   availability: [],
+  service_contract: [],
   tipo: [],
   subtipo: [],
   motor: [],
@@ -102,10 +125,12 @@ export const EMPTY_PROPOSAL_FORM: ProposalFormData = {
 };
 
 export const EMPTY_REPAIR_BUDGET_FORM: RepairBudgetFormData = {
-  importe_total: '',
+  items: [{ referencia: '', descripcion: '', unidades: '1', precio_unitario: '' }],
   condiciones: '',
   expira_at: '',
   payer_type: 'EMPRESA',
+  fault_cause: '',
+  contract_type: '',
 };
 
 export const EMPTY_MACHINE_EDIT_FORM: MachineEditFormData = {
@@ -135,11 +160,40 @@ export const EMPTY_MACHINE_EDIT_FORM: MachineEditFormData = {
   elev_horquillas: '',
 };
 
+
+export const EMPTY_SERVICE_CONTRACT_FORM: ServiceContractCreateFormData = {
+  contract_type: 'PREVENTIVO',
+  tarifa_fija: '',
+  start_date: '',
+  end_date: '',
+  recurrencia_unidad: 'WEEK',
+  maintenance_weekday: '1',
+  maintenance_day_of_month: '',
+  cliente_nombre: '',
+  cliente_email: '',
+  cliente_telefono: '',
+  cliente_direccion: '',
+  cliente_poblacion: '',
+  cliente_cp: '',
+  condiciones: '',
+};
+
 export const EMPTY_MACHINE_CREATE_FORM: MachineCreateFormData = {
+  subtipo: '',
   marca: '',
   modelo: '',
   ns: '',
   image_uri: '',
+  ubicacion: '',
+  ubicacion_operativa_direccion: '',
+  ubicacion_operativa_poblacion: '',
+  ubicacion_operativa_cp: '',
+  owner_cliente_nombre: '',
+  owner_cliente_email: '',
+  owner_cliente_telefono: '',
+  owner_cliente_direccion: '',
+  owner_cliente_poblacion: '',
+  owner_cliente_cp: '',
   tipo: 'elevacion',
   motor: '',
   seguro: '',
@@ -204,3 +258,4 @@ export const ELEVATION_DETAIL_FIELDS: { label: string; key: keyof MachineDetail 
   { label: 'Peso (Kg)', key: 'elev_peso_kg' },
   { label: 'Horquillas (cm)', key: 'elev_horquillas' },
 ];
+

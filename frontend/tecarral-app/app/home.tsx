@@ -18,6 +18,7 @@ import { MachineListView } from '@/components/home/machine-list-view';
 import { NavigationAppModal } from '@/components/home/navigation-app-modal';
 import { ProposalFormView } from '@/components/home/proposal-form-view';
 import { RepairBudgetFormView } from '@/components/home/repair-budget-form-view';
+import { ServiceContractFormView } from '@/components/home/service-contract-form-view';
 import { ReparacionesScreen } from '@/components/reparaciones/reparaciones-screen';
 import { HelpSidePanel } from '@/components/shared/help-side-panel';
 import { UserScreen } from '@/components/user/user-screen';
@@ -61,17 +62,9 @@ export default function HomeScreen() {
   }, [home.activeTab, indicatorTranslateX, indicatorWidth, tabSlotWidth]);
 
   useEffect(() => {
-    if (home.activeTab !== 'home') {
-      return;
-    }
-
-    if (
-      home.homeSubview === 'proposalForm' ||
-      home.homeSubview === 'repairBudgetForm' ||
-      home.homeSubview === 'list'
-    ) {
+    requestAnimationFrame(() => {
       scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-    }
+    });
   }, [home.activeTab, home.homeSubview, home.homeScrollResetKey]);
 
   useEffect(() => {
@@ -203,16 +196,21 @@ export default function HomeScreen() {
         <MachineDetailView
           acceptedProposal={home.acceptedProposal}
           canCreateProposal={home.canCreateProposal}
+          canCreateServiceContract={home.canCreateServiceContract}
           canOpenProposalForm={home.canOpenProposalForm}
           canCreateRepairBudget={home.canCreateRepairBudget}
           canMarkDelivered={home.canMarkDelivered}
+          canUseLocationFlow={home.canUseLocationFlow}
           canSubmitIncidence={home.canSubmitIncidence}
           detailFeedback={home.detailFeedback}
           detailLoading={home.detailLoading}
           detailSuccessFeedback={home.detailSuccessFeedback}
           incidenceComment={home.incidenceComment}
           incidenceEscalationMode={home.incidenceEscalationMode}
+          incidenceFaultCause={home.incidenceFaultCause}
           incidencePanelVisible={home.incidencePanelVisible}
+          incidenceServiceCaseType={home.incidenceServiceCaseType}
+          isCustomerOwnedMachine={home.isCustomerOwnedMachine}
           locationActionLoading={home.locationActionLoading}
           locationOptions={home.locationOptions}
           locationPickerOpen={home.locationPickerOpen}
@@ -235,6 +233,8 @@ export default function HomeScreen() {
           onBack={home.resetToListView}
           onCancelIncidenceDraft={home.handleCancelIncidenceDraft}
           onChangeIncidenceComment={home.setIncidenceComment}
+          onChangeIncidenceFaultCause={home.setIncidenceFaultCause}
+          onChangeIncidenceServiceCaseType={home.setIncidenceServiceCaseType}
           onChangeMachineEditField={home.updateMachineEditForm}
           onConfirmLocation={() => void home.handleConfirmLocation()}
           onCancelMachineEdit={home.handleCancelMachineEdit}
@@ -243,6 +243,7 @@ export default function HomeScreen() {
           onOpenProposalDetail={home.openProposalDetail}
           onOpenProposalForm={home.openProposalForm}
           onOpenRepairBudgetForm={home.openRepairBudgetForm}
+          onOpenServiceContractForm={home.openServiceContractForm}
           onPickMachineEditImageFromLibrary={() => void home.pickMachineImage('library', 'edit')}
           onRequestScrollToFocusedInput={scrollFocusedInputIntoView}
           onSaveMachineEdit={() => void home.handleSaveMachineEdit()}
@@ -300,6 +301,22 @@ export default function HomeScreen() {
       );
     }
 
+    if (home.homeSubview === 'serviceContractForm') {
+      return (
+        <ServiceContractFormView
+          feedback={home.serviceContractFeedback}
+          form={home.serviceContractForm}
+          onBack={() => home.setHomeSubview('detail')}
+          onChangeField={home.updateServiceContractForm}
+          onOpenHelp={() => setHelpOpen(true)}
+          onRequestScrollToFocusedInput={scrollFocusedInputIntoView}
+          onSubmit={() => void home.handleCreateServiceContract()}
+          selectedMachineDetail={home.selectedMachineDetail}
+          submitting={home.serviceContractSubmitting}
+        />
+      );
+    }
+
     if (home.homeSubview === 'repairBudgetForm') {
       return (
         <RepairBudgetFormView
@@ -324,8 +341,11 @@ export default function HomeScreen() {
           elevationLibreOptions={home.machineBooleanOptions}
           feedback={home.machineCreateFeedback}
           form={home.machineCreateForm}
+          inventoryOwnershipType={home.inventoryOwnershipType}
           motorOpen={home.machineCreateMotorOpen}
+          subtipoOpen={home.machineCreateSubtipoOpen}
           motorOptions={home.machineMotorOptions}
+          subtipoOptions={home.machineSubtipoOptions}
           onBack={home.resetToListView}
           onChangeField={home.updateMachineCreateForm}
           onOpenHelp={() => setHelpOpen(true)}
@@ -333,6 +353,7 @@ export default function HomeScreen() {
           onRequestScrollToFocusedInput={scrollFocusedInputIntoView}
           onSubmit={() => void home.handleCreateMachine()}
           onTakePhoto={() => void home.pickMachineImage('camera')}
+          onToggleSubtipo={() => home.setMachineCreateSubtipoOpen((current: boolean) => !current)}
           onToggleElevationLibre={() =>
             home.setMachineCreateElevationLibreOpen((current: boolean) => !current)
           }
@@ -354,12 +375,14 @@ export default function HomeScreen() {
         cardWidth={cardWidth}
         feedback={home.feedback}
         filterPanelOpen={home.filterPanelOpen}
+        inventoryOwnershipType={home.inventoryOwnershipType}
         filters={home.filters}
         loadingMachines={home.loadingMachines}
         loadingSuggestions={home.loadingSuggestions}
         machines={home.visibleMachines}
         canCreateMachine={home.canCreateMachine}
         onOpenHelp={() => setHelpOpen(true)}
+        onChangeInventoryOwnership={home.handleInventoryOwnershipChange}
         onOpenCreateMachine={home.openCreateMachineForm}
         onOpenMachine={(idMaquina) => void home.openMachineDetail(idMaquina)}
         onQueryChange={home.setQuery}

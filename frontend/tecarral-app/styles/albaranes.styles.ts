@@ -7,6 +7,67 @@ export const albaranesStyles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 20,
   },
+  browserTitle: {
+    color: AppColors.primary,
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  browserSubtitle: {
+    color: AppColors.text,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 14,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  categoryChip: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: AppColors.primary,
+    backgroundColor: AppColors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  categoryChipActive: {
+    backgroundColor: AppColors.primary,
+  },
+  categoryChipText: {
+    color: AppColors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  categoryChipTextActive: {
+    color: AppColors.background,
+  },
+  categoryBadge: {
+    minWidth: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: AppColors.primary20,
+    alignItems: 'center',
+  },
+  categoryBadgeActive: {
+    backgroundColor: AppColors.background,
+  },
+  categoryBadgeText: {
+    color: AppColors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  categoryBadgeTextActive: {
+    color: AppColors.primary,
+  },
   header: {
     marginBottom: 18,
   },
@@ -87,6 +148,27 @@ export const albaranesStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  openHint: {
+    color: AppColors.primary50,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
+  },
+  showMoreButton: {
+    minHeight: 42,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: AppColors.primary,
+    backgroundColor: AppColors.primary20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  showMoreButtonText: {
+    color: AppColors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   detailContainer: {
     paddingTop: 14,
     paddingBottom: 24,
@@ -137,7 +219,12 @@ export const albaranesStyles = StyleSheet.create({
   detailSubtitle: {
     color: AppColors.primary50,
     fontSize: 14,
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  compactSummaryText: {
+    color: AppColors.text,
+    fontSize: 14,
+    lineHeight: 20,
   },
   detailLine: {
     color: '#111111',
@@ -204,6 +291,20 @@ export const albaranesStyles = StyleSheet.create({
   },
   actionButtonText: {
     color: AppColors.primary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  primaryActionButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: AppColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    marginTop: 20,
+  },
+  primaryActionButtonText: {
+    color: AppColors.background,
     fontSize: 15,
     fontWeight: '700',
   },

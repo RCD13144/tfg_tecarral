@@ -10,8 +10,26 @@ import {
   registerUserByAdmin,
   updateMeProfile,
 } from '@/services/users-api';
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '@/services/notifications-api';
+import {
+  completeContractVisit,
+  getContractDetail,
+  getPendingTecarralContracts,
+  signContractByTecarral,
+} from '@/services/service-contracts-api';
 import type { AuthSession } from '@/types/auth';
-import type { ChangePasswordForm, CreateUserForm, UserListItem, UserProfileForm } from '@/types/user';
+import type {
+  ChangePasswordForm,
+  CreateUserForm,
+  NotificationItem,
+  ServiceContractItem,
+  UserListItem,
+  UserProfileForm,
+} from '@/types/user';
 import { isSimpleEmailValid, isSimplePhoneValid, normalizeInputText } from '@/utils/validation';
 
 const EMPTY_CREATE_USER_FORM: CreateUserForm = {
@@ -61,6 +79,13 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
   const [deactivateFeedback, setDeactivateFeedback] = useState<string | null>(null);
   const [deactivateSuccess, setDeactivateSuccess] = useState<string | null>(null);
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsFeedback, setNotificationsFeedback] = useState<string | null>(null);
+  const [pendingContracts, setPendingContracts] = useState<ServiceContractItem[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractsFeedback, setContractsFeedback] = useState<string | null>(null);
+  const [contractSigningSubmitting, setContractSigningSubmitting] = useState(false);
 
   const isAdmin = String(session?.user.role ?? '').trim().toLowerCase() === 'admin';
 
@@ -121,6 +146,38 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
     }
   }, [handleApiError, isAdmin, session?.token]);
 
+  const loadNotifications = useCallback(async () => {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      setNotificationsLoading(true);
+      setNotificationsFeedback(null);
+      setNotifications(await getNotifications(session.token));
+    } catch (error) {
+      await handleApiError(error, setNotificationsFeedback, 'No se pudieron cargar las notificaciones.');
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [handleApiError, session?.token]);
+
+  const loadPendingContracts = useCallback(async () => {
+    if (!session?.token || !isAdmin) {
+      return;
+    }
+
+    try {
+      setContractsLoading(true);
+      setContractsFeedback(null);
+      setPendingContracts(await getPendingTecarralContracts(session.token));
+    } catch (error) {
+      await handleApiError(error, setContractsFeedback, 'No se pudieron cargar los contratos.');
+    } finally {
+      setContractsLoading(false);
+    }
+  }, [handleApiError, isAdmin, session?.token]);
+
   useEffect(() => {
     setProfileForm({
       telefono: session?.user.telefono ?? '',
@@ -132,10 +189,13 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
       return;
     }
 
+    void loadNotifications();
+
     if (isAdmin) {
       void loadUsers();
+      void loadPendingContracts();
     }
-  }, [isAdmin, loadUsers, visible]);
+  }, [isAdmin, loadNotifications, loadPendingContracts, loadUsers, visible]);
 
   useEffect(() => {
     return () => {
@@ -383,6 +443,95 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
     }
   }
 
+  async function submitContractSignature(idContract: number, signatureBase64: string) {
+    if (!session?.token || !isAdmin) {
+      return;
+    }
+
+    if (!signatureBase64.trim()) {
+      setContractsFeedback('Firma requerida para Tecarral.');
+      return;
+    }
+
+    try {
+      setContractSigningSubmitting(true);
+      setContractsFeedback(null);
+
+      await signContractByTecarral(
+        idContract,
+        {
+          signer_name: session.user.nombre,
+          signer_email: session.user.email,
+          signature_base64: signatureBase64,
+        },
+        session.token
+      );
+
+      await loadPendingContracts();
+      showTimedSuccess(setContractsFeedback, 'Contrato firmado correctamente por Tecarral.');
+    } catch (error) {
+      await handleApiError(error, setContractsFeedback, 'No se pudo firmar el contrato.');
+    } finally {
+      setContractSigningSubmitting(false);
+    }
+  }
+
+  async function completeVisit(idVisit: number) {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      await completeContractVisit(idVisit, {}, session.token);
+      await loadPendingContracts();
+      await loadNotifications();
+    } catch (error) {
+      await handleApiError(error, setContractsFeedback, 'No se pudo completar la visita.');
+    }
+  }
+
+  async function markOneNotificationRead(idNotification: number) {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      const updated = await markNotificationRead(idNotification, session.token);
+      setNotifications((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+    } catch (error) {
+      await handleApiError(error, setNotificationsFeedback, 'No se pudo marcar la notificación.');
+    }
+  }
+
+  async function markEveryNotificationRead() {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      await markAllNotificationsRead(session.token);
+      setNotifications((current) =>
+        current.map((item) => ({ ...item, is_read: true }))
+      );
+    } catch (error) {
+      await handleApiError(
+        error,
+        setNotificationsFeedback,
+        'No se pudieron marcar las notificaciones.'
+      );
+    }
+  }
+
+  async function getContractForSigning(idContract: number) {
+    if (!session?.token) {
+      return null;
+    }
+
+    return getContractDetail(idContract, session.token);
+  }
+
   return {
     isAdmin,
     profileForm,
@@ -414,5 +563,17 @@ export function useUserScreen(session: AuthSession | null, visible: boolean) {
     submitDeactivateUser,
     logoutSubmitting,
     submitSignOut,
+    notifications,
+    notificationsLoading,
+    notificationsFeedback,
+    pendingContracts,
+    contractsLoading,
+    contractsFeedback,
+    contractSigningSubmitting,
+    submitContractSignature,
+    completeVisit,
+    markOneNotificationRead,
+    markEveryNotificationRead,
+    getContractForSigning,
   };
 }

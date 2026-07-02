@@ -45,7 +45,8 @@
             "backgroundColor": "#ffffff"
           }
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "reactCompiler": true

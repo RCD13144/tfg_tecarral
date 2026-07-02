@@ -1,20 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
-import { FILTER_DEFINITIONS } from '@/constants/home';
+import { CLIENT_FILTER_DEFINITIONS, TECARRAL_FILTER_DEFINITIONS } from '@/constants/home';
 import { AppColors } from '@/constants/theme';
 import { homeStyles } from '@/styles/home.styles';
-import type { FilterCategoryKey, MachineFilters } from '@/types/maquina';
+import type { FilterCategoryKey, InventoryOwnershipType, MachineFilters } from '@/types/maquina';
 
 export function FilterPanel({
   filters,
   onClose,
   onToggle,
+  inventoryOwnershipType,
 }: {
   filters: MachineFilters;
   onClose: () => void;
   onToggle: (category: FilterCategoryKey, value: string) => void;
+  inventoryOwnershipType: InventoryOwnershipType;
 }) {
+  const definitions = inventoryOwnershipType === 'CLIENTE'
+    ? CLIENT_FILTER_DEFINITIONS
+    : TECARRAL_FILTER_DEFINITIONS;
   return (
     <View style={homeStyles.filterPanelWrapper}>
       <View style={homeStyles.filterPanel}>
@@ -22,7 +27,7 @@ export function FilterPanel({
           <Ionicons color={AppColors.primary} name="close-circle-outline" size={24} />
         </Pressable>
 
-        {FILTER_DEFINITIONS.map((section) => (
+        {definitions.map((section) => (
           <View key={section.key} style={homeStyles.filterSection}>
             <Text style={homeStyles.filterSectionTitle}>{section.label}</Text>
             <View style={homeStyles.filterChipRow}>

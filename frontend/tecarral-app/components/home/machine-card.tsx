@@ -48,7 +48,7 @@ export function MachineCard({
           {String(item.marca ?? '-')}
         </Text>
         <Text numberOfLines={1} style={homeStyles.machineLine}>
-          <Text style={homeStyles.machineLabel}>Ubicacion: </Text>
+          <Text style={homeStyles.machineLabel}>Ubicación: </Text>
           {String(item.ubicacion_tipo ?? '-')}
         </Text>
         <Text numberOfLines={1} style={homeStyles.machineLine}>

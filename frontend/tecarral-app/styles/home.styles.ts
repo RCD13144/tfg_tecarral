@@ -61,6 +61,9 @@ export const homeStyles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
+  filterButtonDisabled: {
+    opacity: 0.65,
+  },
   addMachineButton: {
     width: 42,
     height: 42,
@@ -162,6 +165,40 @@ export const homeStyles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: AppColors.background,
+  },
+  inventoryTabsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  inventoryTabButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: AppColors.primary50,
+    backgroundColor: AppColors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inventoryTabButtonActive: {
+    backgroundColor: AppColors.primary,
+    borderColor: AppColors.primary,
+  },
+  inventoryTabText: {
+    color: AppColors.primary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  inventoryTabTextActive: {
+    color: AppColors.background,
+  },
+  inventoryTabsHint: {
+    color: AppColors.primary,
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   machineListContent: {
     paddingTop: 10,
@@ -396,6 +433,10 @@ export const homeStyles = StyleSheet.create({
     gap: 10,
     marginBottom: 10,
   },
+  inlineActionColumn: {
+    gap: 10,
+    marginBottom: 10,
+  },
   inlineActionButton: {
     flex: 1,
     minHeight: 42,
@@ -419,6 +460,18 @@ export const homeStyles = StyleSheet.create({
   },
   sectionBlock: {
     marginTop: 20,
+  },
+  wizardHeader: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: AppColors.primary20,
+    backgroundColor: AppColors.secondary65,
+    padding: 14,
+    marginBottom: 14,
+  },
+  wizardActionsRow: {
+    gap: 10,
+    marginTop: 8,
   },
   mapsRow: {
     flexDirection: 'row',

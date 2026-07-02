@@ -24,6 +24,14 @@ const signatureWebStyle = `
     margin: 0;
     padding: 0;
     background: #ffffff;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas {
+    touch-action: none;
   }
 `;
 

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { AuthProvider } from '@/contexts/auth-context';
+import { PushNotificationRegistrar } from '@/components/notifications/push-notification-registrar';
 import { AppColors } from '@/constants/theme';
 
 const navigationTheme = {
@@ -33,8 +34,10 @@ export default function RootLayout() {
           <Stack.Screen name="change-password" />
           <Stack.Screen name="home" />
         </Stack>
+        <PushNotificationRegistrar />
         <StatusBar style="dark" />
       </AuthProvider>
     </ThemeProvider>
   );
 }
+

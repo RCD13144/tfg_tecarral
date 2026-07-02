@@ -110,6 +110,10 @@ export const userStyles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 6,
   },
+  secondaryButtonCompact: {
+    backgroundColor: AppColors.background,
+    borderColor: AppColors.primary,
+  },
   registerButton: {
     backgroundColor: AppColors.primary20,
     borderColor: AppColors.primary,

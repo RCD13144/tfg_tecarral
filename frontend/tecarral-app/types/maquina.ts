@@ -1,5 +1,7 @@
 import type { ActiveRepairSummary } from '@/types/reparacion';
 
+export type InventoryOwnershipType = 'TECARRAL' | 'CLIENTE';
+
 export interface Maquina {
   id_maquina: number;
   tipo?: string | null;
@@ -9,6 +11,7 @@ export interface Maquina {
   motor?: string | null;
   ubicacion_tipo?: string | null;
   availability_status?: string | null;
+  ownership_type?: InventoryOwnershipType | string | null;
   transit_reason?: 'REPARACION_TERMINADA' | 'ALQUILER_FINALIZADO' | null;
   image_path?: string | null;
   image_url?: string | null;
@@ -22,10 +25,12 @@ export type HomeSubview =
   | 'detail'
   | 'proposalForm'
   | 'repairBudgetForm'
+  | 'serviceContractForm'
   | 'createMachineForm';
 
 export type FilterCategoryKey =
   | 'availability'
+  | 'service_contract'
   | 'tipo'
   | 'subtipo'
   | 'motor'
@@ -33,6 +38,7 @@ export type FilterCategoryKey =
 
 export interface MachineFilters {
   availability: string[];
+  service_contract: string[];
   tipo: string[];
   subtipo: string[];
   motor: string[];
@@ -42,6 +48,7 @@ export interface MachineFilters {
 export interface MachineQueryParams {
   q?: string;
   filters?: MachineFilters;
+  ownership_type?: InventoryOwnershipType;
 }
 
 export interface MachineMaps {
@@ -62,6 +69,11 @@ export interface MachineDetail extends Maquina {
   logistics_status?: string | null;
   maps?: MachineMaps | null;
   active_repair?: ActiveRepairSummary | null;
+  service_contract_id?: number | null;
+  service_contract_type?: 'PREVENTIVO' | 'TODO_INCLUIDO' | string | null;
+  next_service_action?: string | null;
+  repair_budget_block_reason?: string | null;
+  can_create_repair_budget?: boolean | null;
   elev_ruedas?: string | number | null;
   elev_cap_carga?: string | number | null;
   elev_replegado_mm?: string | number | null;
@@ -136,10 +148,21 @@ export interface MachineEditFormData {
 }
 
 export interface MachineCreateFormData {
+  subtipo: string;
   marca: string;
   modelo: string;
   ns: string;
   image_uri: string;
+  ubicacion: string;
+  ubicacion_operativa_direccion: string;
+  ubicacion_operativa_poblacion: string;
+  ubicacion_operativa_cp: string;
+  owner_cliente_nombre: string;
+  owner_cliente_email: string;
+  owner_cliente_telefono: string;
+  owner_cliente_direccion: string;
+  owner_cliente_poblacion: string;
+  owner_cliente_cp: string;
   tipo: 'elevacion' | 'limpieza';
   motor: 'diesel' | 'electrica' | 'semi electrica' | 'manual' | '';
   seguro: 'true' | 'false' | '';
@@ -161,8 +184,26 @@ export interface MachineCreateFormData {
   elev_horquillas: string;
 }
 
+export interface ServiceContractCreateFormData {
+  contract_type: 'PREVENTIVO' | 'TODO_INCLUIDO';
+  tarifa_fija: string;
+  start_date: string;
+  end_date: string;
+  recurrencia_unidad: 'WEEK' | 'MONTH';
+  maintenance_weekday: string;
+  maintenance_day_of_month: string;
+  cliente_nombre: string;
+  cliente_email: string;
+  cliente_telefono: string;
+  cliente_direccion: string;
+  cliente_poblacion: string;
+  cliente_cp: string;
+  condiciones: string;
+}
+
 export interface SearchSuggestion {
   id: string;
   label: string;
   source: 'id' | 'modelo' | 'marca' | 'subtipo' | 'tipo' | 'ns' | 'motor';
 }
+

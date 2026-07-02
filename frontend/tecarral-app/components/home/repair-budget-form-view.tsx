@@ -10,6 +10,18 @@ import type { MachineDetail, MachineProposalSummary } from '@/types/maquina';
 import type { RepairBudgetFormData } from '@/types/reparacion';
 import { formatLocationLabel, formatMachineName } from '@/utils/home-format';
 
+function parseDecimalInput(value: string) {
+  const parsed = Number(String(value ?? '').trim().replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
 export function RepairBudgetFormView({
   selectedMachineDetail,
   proposalSummary,
@@ -45,13 +57,38 @@ export function RepairBudgetFormView({
   }
 
   const activeRepair = selectedMachineDetail.active_repair;
-  const payerTypeOptions = [
-    { label: 'Empresa', value: 'EMPRESA' },
-    { label: 'Cliente', value: 'CLIENTE' },
-  ] as const;
-  const payerTypeValueLabel =
-    payerTypeOptions.find((option) => option.value === repairBudgetForm.payer_type)?.label ??
-    'Selecciona quién paga';
+  const lines = repairBudgetForm.items.length > 0
+    ? repairBudgetForm.items
+    : [{ referencia: '', descripcion: '', unidades: '1', precio_unitario: '' }];
+  const base = lines.reduce(
+    (sum, item) => sum + parseDecimalInput(item.unidades) * parseDecimalInput(item.precio_unitario),
+    0
+  );
+  const iva = base * 0.21;
+  const total = base + iva;
+
+  function updateLine(
+    index: number,
+    key: keyof RepairBudgetFormData['items'][number],
+    value: string
+  ) {
+    const next = lines.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, [key]: value } : item
+    );
+    onChangeField('items', next);
+  }
+
+  function addLine() {
+    onChangeField('items', [
+      ...lines,
+      { referencia: '', descripcion: '', unidades: '1', precio_unitario: '' },
+    ]);
+  }
+
+  function removeLine(index: number) {
+    const next = lines.filter((_, itemIndex) => itemIndex !== index);
+    onChangeField('items', next.length > 0 ? next : [{ referencia: '', descripcion: '', unidades: '1', precio_unitario: '' }]);
+  }
 
   return (
     <View style={homeStyles.detailContainer}>
@@ -65,76 +102,106 @@ export function RepairBudgetFormView({
       <Text style={homeStyles.detailTitle}>Nuevo presupuesto de reparación</Text>
 
       <View style={homeStyles.proposalSummaryCard}>
-        <Text style={homeStyles.proposalSummaryTitle}>Información ya definida</Text>
+        <Text style={homeStyles.proposalSummaryTitle}>Información del expediente</Text>
         <FieldRow label="Máquina" value={formatMachineName(selectedMachineDetail)} />
         <FieldRow label="ID máquina" value={selectedMachineDetail.id_maquina} />
         <FieldRow label="Marca" value={selectedMachineDetail.marca} />
         <FieldRow label="Modelo" value={selectedMachineDetail.modelo} />
-        <FieldRow
-          label="Ubicación"
-          value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)}
-        />
+        <FieldRow label="Ubicación" value={formatLocationLabel(selectedMachineDetail.ubicacion_tipo)} />
         <FieldRow label="Reparación ID" value={activeRepair.id_reparacion} />
-        <FieldRow label="Propuesta alquiler ID" value={activeRepair.propuesta_alquiler_id} />
         <FieldRow label="Estado reparación" value={activeRepair.estado} />
+        <FieldRow label="Causa registrada" value={activeRepair.fault_cause === 'GOLPE_ACCIDENTE' ? 'Golpe o accidente' : 'Desgaste o uso normal'} />
         {proposalSummary ? <FieldRow label="Cliente" value={proposalSummary.cliente} /> : null}
       </View>
+
+      <Text style={homeStyles.sectionHint}>
+        La cobertura y quién paga la reparación los decide el backend desde la reparación, el contrato y la causa registrada. Aquí solo se introducen las líneas reales del presupuesto.
+      </Text>
 
       {repairBudgetFeedback ? (
         <Text style={homeStyles.feedbackText}>{repairBudgetFeedback}</Text>
       ) : null}
 
-      <Text style={homeStyles.formFieldLabel}>La reparación la paga</Text>
-      <View style={homeStyles.inlineActionRow}>
-        {payerTypeOptions.map((option) => {
-          const selected = repairBudgetForm.payer_type === option.value;
+      <Text style={homeStyles.sectionTitle}>Líneas del presupuesto</Text>
+      {lines.map((item, index) => (
+        <View key={index} style={homeStyles.proposalSummaryCard}>
+          <View style={homeStyles.inlineActionRow}>
+            <Text style={homeStyles.proposalSummaryTitle}>Línea {index + 1}</Text>
+            {lines.length > 1 ? (
+              <Pressable onPress={() => removeLine(index)} style={homeStyles.inlineActionButton}>
+                <Text style={homeStyles.inlineActionButtonText}>Quitar</Text>
+              </Pressable>
+            ) : null}
+          </View>
 
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => onChangeField('payer_type', option.value)}
-              style={[
-                homeStyles.inlineActionButton,
-                selected && homeStyles.filterChipActive,
-              ]}>
-              <Text
-                style={[
-                  homeStyles.inlineActionButtonText,
-                  selected && homeStyles.filterChipTextActive,
-                ]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+          <Text style={homeStyles.formFieldLabel}>Referencia</Text>
+          <TextInput
+            onChangeText={(value) => updateLine(index, 'referencia', value)}
+            onFocus={onRequestScrollToFocusedInput}
+            placeholder="Referencia opcional"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={item.referencia}
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Descripción</Text>
+          <TextInput
+            multiline
+            onChangeText={(value) => updateLine(index, 'descripcion', value)}
+            onFocus={onRequestScrollToFocusedInput}
+            placeholder="Trabajo, recambio o concepto"
+            placeholderTextColor={AppColors.primary50}
+            style={[homeStyles.formInput, homeStyles.incidenceInput]}
+            value={item.descripcion}
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Unidades</Text>
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={(value) => updateLine(index, 'unidades', value)}
+            onFocus={onRequestScrollToFocusedInput}
+            placeholder="1"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={item.unidades}
+          />
+
+          <Text style={homeStyles.formFieldLabel}>Precio unitario</Text>
+          <TextInput
+            keyboardType="decimal-pad"
+            onChangeText={(value) => updateLine(index, 'precio_unitario', value)}
+            onFocus={onRequestScrollToFocusedInput}
+            placeholder="0,00"
+            placeholderTextColor={AppColors.primary50}
+            style={homeStyles.formInput}
+            value={item.precio_unitario}
+          />
+        </View>
+      ))}
+
+      <Pressable onPress={addLine} style={homeStyles.secondaryActionButtonBlock}>
+        <Text style={homeStyles.secondaryActionButtonText}>Añadir línea</Text>
+      </Pressable>
+
+      <View style={homeStyles.proposalSummaryCard}>
+        <FieldRow label="Base imponible" value={formatMoney(base)} />
+        <FieldRow label="IVA 21 %" value={formatMoney(iva)} />
+        <FieldRow label="Total" value={formatMoney(total)} />
       </View>
 
-      <Text style={homeStyles.sectionHint}>
-        {repairBudgetForm.payer_type === 'CLIENTE'
-          ? 'Se enviará al email de la propuesta de alquiler y quedará pendiente de aceptación.'
-          : 'Se enviará al email interno centralizado y quedará autoaceptado.'}
-      </Text>
-
-      <TextInput
-        keyboardType="numeric"
-        onChangeText={(value) => onChangeField('importe_total', value)}
-        onFocus={onRequestScrollToFocusedInput}
-        placeholder="Importe total"
-        placeholderTextColor={AppColors.primary50}
-        style={homeStyles.formInput}
-        value={repairBudgetForm.importe_total}
-      />
+      <Text style={homeStyles.formFieldLabel}>Condiciones</Text>
       <TextInput
         multiline
         onChangeText={(value) => onChangeField('condiciones', value)}
         onFocus={onRequestScrollToFocusedInput}
-        placeholder="Condiciones"
+        placeholder="Condiciones particulares del presupuesto"
         placeholderTextColor={AppColors.primary50}
         style={[homeStyles.formInput, homeStyles.incidenceInput]}
         value={repairBudgetForm.condiciones}
       />
+
       <DateTimePickerField
-        label="Fecha de expedición"
+        label="Fecha de expiración"
         onChange={(value) => onChangeField('expira_at', value)}
         placeholder="Selecciona fecha y hora"
         value={repairBudgetForm.expira_at}
